@@ -1,0 +1,33 @@
+{
+	"name": "root",
+	"description": "Monorepo for sv-themes",
+	"version": "0.0.0",
+	"author": "Nico Hosse <https://github.com/Ventriix>",
+	"private": true,
+	"type": "module",
+	"workspaces": [
+		"packages/*"
+	],
+	"scripts": {
+		"build": "bun run --filter \"*\" build",
+		"check": "bun run --filter \"*\" check",
+		"changeset": "changeset",
+		"version-packages": "changeset version && bun install",
+		"release": "bun run build && changeset publish"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.4.13",
+		"@changesets/cli": "^2.31.0",
+		"@types/node": "^25.6.0",
+		"lefthook": "^2.1.6",
+		"prettier": "^3.8.3",
+		"stylelint": "^17.9.1",
+		"stylelint-config-idiomatic-order": "^10.0.0",
+		"stylelint-config-standard-scss": "^17.0.0",
+		"stylelint-scss": "^7.0.0"
+	},
+	"trustedDependencies": [
+		"@parcel/watcher",
+		"lefthook"
+	]
+}
