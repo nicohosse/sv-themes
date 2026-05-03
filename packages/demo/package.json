@@ -1,0 +1,42 @@
+{
+	"name": "demo",
+	"description": "SvelteKit demo of sv-themes.",
+	"version": "1.0.0",
+	"author": "Nico Hosse <https://github.com/Ventriix>",
+	"private": true,
+	"keywords": [
+		"svelte"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/Ventriix/sv-themes",
+		"directory": "packages/demo"
+	},
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"prepare": "svelte-kit sync",
+		"typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"typecheck:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"check": "bun run typecheck && biome check ."
+	},
+	"type": "module",
+	"peerDependencies": {
+		"svelte": "^5.0.0"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-auto": "^7.0.1",
+		"@sveltejs/kit": "^2.57.0",
+		"@sveltejs/package": "^2.5.7",
+		"@sveltejs/vite-plugin-svelte": "^7.0.0",
+		"publint": "^0.3.18",
+		"svelte": "^5.55.2",
+		"svelte-check": "^4.4.6",
+		"typescript": "^6.0.2",
+		"vite": "^8.0.7"
+	},
+	"dependencies": {
+		"sv-themes": "workspace:*"
+	}
+}

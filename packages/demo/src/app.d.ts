@@ -1,6 +1,6 @@
 // https://svelte.dev/docs/kit/types#app.d.ts
 
-import type { DefaultTheme } from "$lib/types.ts";
+import type { DefaultTheme } from "sv-themes";
 
 declare global {
 	namespace App {

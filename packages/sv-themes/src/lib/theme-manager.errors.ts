@@ -4,7 +4,8 @@ export type ThemeManagerError =
 	| { type: "NoThemes" }
 	| { type: "ThemeNotFound" }
 	| { type: "SystemThemeUnassigned"; systemTheme: SystemTheme }
-	| { type: "SystemThemesDisabled" };
+	| { type: "SystemThemesDisabled" }
+	| { type: "SystemThemeInvalidType"; systemTheme: SystemTheme };
 
 export const ThemeManagerError = {
 	noThemes: { type: "NoThemes" } as const satisfies ThemeManagerError,
@@ -15,6 +16,10 @@ export const ThemeManagerError = {
 	},
 
 	systemThemesDisabled: { type: "SystemThemesDisabled" } as const satisfies ThemeManagerError,
+
+	systemThemeInvalidType(systemTheme: SystemTheme): ThemeManagerError {
+		return { type: "SystemThemeInvalidType", systemTheme };
+	},
 };
 
 export function getErrorMessage(error: ThemeManagerError): string {
@@ -30,5 +35,8 @@ export function getErrorMessage(error: ThemeManagerError): string {
 
 		case "SystemThemesDisabled":
 			return "System themes are disabled";
+
+		case "SystemThemeInvalidType":
+			return `System theme '${error.systemTheme}' needs to be assigned to a theme with type '${error.systemTheme}'.`;
 	}
 }

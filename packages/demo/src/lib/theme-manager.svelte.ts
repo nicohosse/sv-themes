@@ -1,4 +1,4 @@
-import { createThemeManager, DEFAULT_THEMES } from "./theme-manager.svelte.ts";
+import { createThemeManager, DEFAULT_THEMES, getErrorMessage } from "sv-themes";
 
 export const themeManager = createThemeManager({
 	themes: DEFAULT_THEMES,
@@ -6,6 +6,6 @@ export const themeManager = createThemeManager({
 }).match(
 	(themeManager) => themeManager,
 	(errors) => {
-		throw new Error(JSON.stringify(errors));
+		throw new Error(JSON.stringify(errors.map((error) => getErrorMessage(error))));
 	},
 );

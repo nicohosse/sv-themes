@@ -9,6 +9,7 @@
 		"packages/*"
 	],
 	"scripts": {
+		"prepare": "bun run --filter \"*\" prepare",
 		"build": "bun run --filter \"*\" build",
 		"check": "bun run --filter \"*\" check",
 		"changeset": "changeset",

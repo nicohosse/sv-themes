@@ -1,5 +1,6 @@
+import { BROWSER } from "esm-env";
 import { err, ok, type Result } from "neverthrow";
-import { browser } from "$app/environment";
+import { resolveCssColor } from "./resolve-css-color.ts";
 import { ThemeManagerError } from "./theme-manager.errors.js";
 
 export type ThemeAttribute = "class" | `data-${string}`;
@@ -7,7 +8,6 @@ export type ThemeAttribute = "class" | `data-${string}`;
 export interface Theme {
 	id: string;
 	type: "light" | "dark";
-	// Hex or css variable
 	color?: string;
 }
 
@@ -32,12 +32,13 @@ export interface ThemeManager<Themes extends ThemesRecord> {
 	readonly themes: Themes;
 	readonly themeIds: (keyof Themes)[];
 
-	useSystemTheme?: boolean;
 	readonly enableSystemThemes?: boolean;
 	readonly systemThemes?: Partial<Record<SystemTheme, keyof Themes>>;
+	readonly useSystemTheme?: boolean;
+	setUseSystemTheme: (useSystemTheme: boolean) => Result<void, ThemeManagerError>;
 
-	resolvedTheme: keyof Themes;
-	selectedTheme?: keyof Themes;
+	readonly resolvedTheme: keyof Themes;
+	readonly selectedTheme: keyof Themes;
 	setSelectedTheme: (theme: keyof Themes) => Result<void, ThemeManagerError>;
 	setTheme: (theme: keyof Themes | "system") => Result<void, ThemeManagerError>;
 
@@ -53,6 +54,7 @@ export interface ThemeManager<Themes extends ThemesRecord> {
 
 	[INTERNAL]: {
 		systemTheme?: SystemTheme;
+		resolvedSystemThemes: Record<SystemTheme, keyof Themes>;
 	};
 }
 
@@ -65,29 +67,57 @@ function validateRequestedTheme<const Themes extends ThemesRecord>(
 	return ok();
 }
 
+function validateSystemTheme<const Themes extends ThemesRecord>(
+	themeManager: ThemeManager<Themes>,
+	systemTheme: SystemTheme,
+): Result<void, ThemeManagerError> {
+	const hasSystemTheme = systemTheme === "light" ? themeManager.hasLightSystemTheme : themeManager.hasDarkSystemTheme;
+	const resolvedSystemThemeId =
+		systemTheme === "light"
+			? themeManager[INTERNAL].resolvedSystemThemes.light
+			: themeManager[INTERNAL].resolvedSystemThemes.dark;
+
+	if (hasSystemTheme && themeManager.themes[resolvedSystemThemeId].type !== systemTheme)
+		return err(ThemeManagerError.systemThemeInvalidType(systemTheme));
+	else if (!hasSystemTheme) return err(ThemeManagerError.systemThemeUnassigned(systemTheme));
+
+	return ok();
+}
+
 function validateThemeManager<const Themes extends ThemesRecord>(
 	themeManager: ThemeManager<Themes>,
 ): Result<void, ThemeManagerError[]> {
-	if (themeManager.themeIds.length < 1) return err([ThemeManagerError.noThemes]);
+	const errors = [];
+
+	if (themeManager.themeIds.length < 1) errors.push(ThemeManagerError.noThemes);
+
+	const selectedThemeResult = validateRequestedTheme(themeManager, themeManager.selectedTheme);
+	if (selectedThemeResult.isErr()) errors.push(selectedThemeResult.error);
 
 	if (themeManager.enableSystemThemes) {
-		const errors = [];
+		const lightThemeResult = validateSystemTheme(themeManager, "light");
+		if (lightThemeResult.isErr()) errors.push(lightThemeResult.error);
 
-		if (!themeManager.hasLightSystemTheme) errors.push(ThemeManagerError.systemThemeUnassigned("light"));
-		if (!themeManager.hasDarkSystemTheme) errors.push(ThemeManagerError.systemThemeUnassigned("dark"));
-
-		if (errors.length > 0) return err(errors);
+		const darkThemeResult = validateSystemTheme(themeManager, "dark");
+		if (darkThemeResult.isErr()) errors.push(darkThemeResult.error);
 	}
+
+	if (errors.length > 0) return err(errors);
 
 	return ok();
 }
 
 function resolveSystemThemes<const Themes extends ThemesRecord>(
+	themes: Themes,
 	systemThemes?: Partial<Record<SystemTheme, keyof Themes>>,
 ): Record<SystemTheme, keyof Themes> {
+	const themeValues = Object.values(themes);
+	const firstLightTheme = themeValues.find((theme) => theme.type === "light")?.id;
+	const firstDarkTheme = themeValues.find((theme) => theme.type === "dark")?.id;
+
 	return {
-		light: systemThemes?.light ?? "light",
-		dark: systemThemes?.dark ?? "dark",
+		light: systemThemes?.light ?? firstLightTheme ?? "light",
+		dark: systemThemes?.dark ?? firstDarkTheme ?? "dark",
 	};
 }
 
@@ -103,6 +133,8 @@ type CreateThemeManagerInput<Themes extends ThemesRecord> = {
 	| "useSystemTheme"
 	| "resolvedTheme"
 	| "setSelectedTheme"
+	| "selectedTheme"
+	| "setUseSystemTheme"
 	| typeof INTERNAL
 > &
 	Partial<Pick<ThemeManager<Themes>, "attributes" | "useColorScheme" | "useSystemTheme">>;
@@ -124,9 +156,19 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 	});
 
 	const themeIds = Object.keys(themes) as (keyof Themes)[];
-	const resolvedSystemThemes = resolveSystemThemes(systemThemes);
+	const resolvedSystemThemes = resolveSystemThemes(themes, systemThemes);
 
-	const resolvedTheme = $derived(state.useSystemTheme ? resolvedSystemThemes[state.systemTheme] : state.selectedTheme);
+	const resolvedTheme = $derived.by(() => {
+		const resolvedThemeId = state.useSystemTheme ? resolvedSystemThemes[state.systemTheme] : state.selectedTheme;
+		return themeIds.includes(resolvedThemeId) ? resolvedThemeId : initialTheme;
+	});
+
+	const setUseSystemTheme: (useSystemTheme: boolean) => Result<void, ThemeManagerError> = (useSystemTheme: boolean) => {
+		if (!enableSystemThemes) return err(ThemeManagerError.systemThemesDisabled);
+
+		state.useSystemTheme = useSystemTheme;
+		return ok();
+	};
 
 	const setSelectedTheme = (theme: keyof Themes) => {
 		return validateRequestedTheme(themeManager, theme).andTee(() => {
@@ -135,24 +177,20 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 	};
 
 	const setTheme = (theme: keyof Themes | "system") => {
-		if (theme === "system") {
-			if (!enableSystemThemes) return err(ThemeManagerError.systemThemesDisabled);
-
-			state.useSystemTheme = true;
-
+		return setUseSystemTheme(theme === "system").andThen(() => {
+			if (theme !== "system") return setSelectedTheme(theme);
 			return ok();
-		} else {
-			state.useSystemTheme = false;
-		}
-
-		return setSelectedTheme(theme);
+		});
 	};
 
 	const hasLightTheme = !!Object.values(themes).find((theme) => theme.type === "light");
 	const hasDarkTheme = !!Object.values(themes).find((theme) => theme.type === "dark");
 
-	const hasLightSystemTheme = hasLightTheme && themeIds.includes(resolvedSystemThemes.light);
-	const hasDarkSystemTheme = hasDarkTheme && themeIds.includes(resolvedSystemThemes.dark);
+	const hasLightSystemTheme =
+		themeIds.includes(resolvedSystemThemes.light) && themes[resolvedSystemThemes.light].type === "light";
+
+	const hasDarkSystemTheme =
+		themeIds.includes(resolvedSystemThemes.dark) && themes[resolvedSystemThemes.dark].type === "dark";
 
 	const themeManager: ThemeManager<Themes> = {
 		themes,
@@ -170,9 +208,7 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 		get useSystemTheme() {
 			return state.useSystemTheme;
 		},
-		set useSystemTheme(value) {
-			state.useSystemTheme = value;
-		},
+		setUseSystemTheme,
 
 		get resolvedTheme() {
 			return resolvedTheme;
@@ -192,6 +228,8 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 			set systemTheme(value) {
 				state.systemTheme = value;
 			},
+
+			resolvedSystemThemes,
 		},
 	};
 
@@ -199,10 +237,9 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 }
 
 function updateColorScheme<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
-	if (!themeManager.useColorScheme || !browser) return;
+	if (!themeManager.useColorScheme || !BROWSER) return;
 
 	const resolvedTheme = themeManager.themes[themeManager.resolvedTheme];
-	if (!resolvedTheme?.color) return;
 
 	document.documentElement.style.colorScheme = resolvedTheme.type;
 
@@ -214,16 +251,49 @@ function updateColorScheme<const Themes extends ThemesRecord>(themeManager: Them
 		document.head.appendChild(colorSchemeMetaElement);
 	}
 
-	let content = "light";
+	const firstTheme = Object.values(themeManager.themes).at(0);
 
-	if (themeManager.hasLightTheme && themeManager.hasDarkTheme) content = "light dark";
-	else if (themeManager.hasDarkTheme) content = "dark";
+	if (firstTheme) {
+		let colorSchemeContent = "light";
 
-	colorSchemeMetaElement.setAttribute("content", content);
+		if (firstTheme.type === "light" && themeManager.hasDarkTheme) colorSchemeContent = "light dark";
+		else if (firstTheme.type === "dark" && themeManager.hasLightTheme) colorSchemeContent = "dark light";
+		else if (!themeManager.hasLightTheme && themeManager.hasDarkTheme) colorSchemeContent = "dark";
+
+		colorSchemeMetaElement.setAttribute("content", colorSchemeContent);
+	}
+
+	if (!resolvedTheme.color) return;
+
+	let resolvedColor = resolvedTheme.color;
+
+	const isColorHex = resolvedColor.startsWith("#");
+
+	if (!isColorHex) {
+		const computedColor = resolveCssColor(resolvedTheme.color);
+
+		if (computedColor) resolvedColor = computedColor;
+		else {
+			console.error(
+				`The color of theme '${resolvedTheme.id}' couldn't be resolved. Skipping theme-color meta element.`,
+			);
+			return;
+		}
+	}
+
+	let themeColorMetaElement = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+
+	if (!themeColorMetaElement) {
+		themeColorMetaElement = document.createElement("meta");
+		themeColorMetaElement.setAttribute("name", "theme-color");
+		document.head.appendChild(themeColorMetaElement);
+	}
+
+	themeColorMetaElement.setAttribute("content", resolvedColor);
 }
 
 function updateAttributes<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
-	if (!browser) return;
+	if (!BROWSER) return () => {};
 
 	const resolvedTheme = themeManager.resolvedTheme;
 	const addedClasses: string[] = [];
@@ -231,13 +301,15 @@ function updateAttributes<const Themes extends ThemesRecord>(themeManager: Theme
 	for (const attribute of themeManager.attributes) {
 		if (attribute === "class") {
 			const themeClasses = themeManager.themeClasses;
-			const themeClass =
+
+			const themeClass = (
 				themeClasses && resolvedTheme in themeClasses && themeClasses[resolvedTheme]
 					? themeClasses[resolvedTheme]
-					: resolvedTheme;
+					: resolvedTheme
+			) as string;
 
-			document.documentElement.classList.add(themeClass as string);
-			addedClasses.push(themeClass as string);
+			document.documentElement.classList.add(themeClass);
+			addedClasses.push(themeClass);
 		} else {
 			document.documentElement.setAttribute(attribute, resolvedTheme as string);
 		}
@@ -251,7 +323,7 @@ function updateAttributes<const Themes extends ThemesRecord>(themeManager: Theme
 }
 
 function registerMediaListener<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
-	if (!browser) return;
+	if (!themeManager.enableSystemThemes || !BROWSER) return;
 
 	const media = window.matchMedia("(prefers-color-scheme: dark)");
 	const updateSystemTheme = (matches: boolean) => (themeManager[INTERNAL].systemTheme = matches ? "dark" : "light");
@@ -272,7 +344,7 @@ export function registerThemeManager<const Themes extends ThemesRecord>(themeMan
 		const cleanUpAttributes = updateAttributes(themeManager);
 
 		return () => {
-			cleanUpAttributes?.();
+			cleanUpAttributes();
 		};
 	});
 }
