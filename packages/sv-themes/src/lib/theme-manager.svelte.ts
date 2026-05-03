@@ -1,26 +1,34 @@
 import { BROWSER } from "esm-env";
 import { err, ok, type Result } from "neverthrow";
 import { resolveCssColor } from "./resolve-css-color.ts";
-import { ThemeManagerError } from "./theme-manager.errors.js";
+import { hasCss, type Theme, type ThemeAttribute, type ThemesRecord } from "./theme.ts";
+import { getErrorMessage, ThemeManagerError } from "./theme-manager.errors.js";
 
-export type ThemeAttribute = "class" | `data-${string}`;
+export function createThemes<const Themes extends readonly Theme[]>(
+	themes: Themes,
+): Result<ThemesRecord<Themes[number]["id"]>, ThemeManagerError[]> {
+	const seen = new Set<string>();
+	const duplicates: string[] = [];
 
-export interface Theme {
-	id: string;
-	type: "light" | "dark";
-	color?: string;
-}
+	for (const theme of themes)
+		if (seen.has(theme.id)) duplicates.push(theme.id);
+		else seen.add(theme.id);
 
-export type ThemesRecord<Keys extends string = string> = Record<Keys, Readonly<Theme>>;
+	if (duplicates.length > 0)
+		return err(duplicates.map((duplicateTheme) => ThemeManagerError.duplicateTheme(duplicateTheme)));
 
-export function createThemes<const Themes extends readonly Theme[]>(themes: Themes) {
-	return Object.fromEntries(themes.map((theme) => [theme.id, theme])) as ThemesRecord<Themes[number]["id"]>;
+	return ok(Object.fromEntries(themes.map((theme) => [theme.id, theme])) as ThemesRecord<Themes[number]["id"]>);
 }
 
 export const DEFAULT_THEMES = createThemes([
 	{ id: "light", type: "light", color: "#fff" },
 	{ id: "dark", type: "dark", color: "#000" },
-]);
+]).match(
+	(themes) => themes,
+	(errors) => {
+		throw new Error(`Failed to create themes: ${JSON.stringify(errors.map((error) => getErrorMessage(error)))}`);
+	},
+);
 
 export type DefaultTheme = keyof typeof DEFAULT_THEMES;
 
@@ -58,7 +66,7 @@ export interface ThemeManager<Themes extends ThemesRecord> {
 	};
 }
 
-function validateRequestedTheme<const Themes extends ThemesRecord>(
+export function validateRequestedTheme<const Themes extends ThemesRecord>(
 	themeManager: ThemeManager<Themes>,
 	requestedTheme: keyof Themes,
 ): Result<void, ThemeManagerError> {
@@ -84,12 +92,26 @@ function validateSystemTheme<const Themes extends ThemesRecord>(
 	return ok();
 }
 
+function validateTheme(theme: Theme): Result<void, ThemeManagerError> {
+	if (theme.css) {
+		const src = theme.css.src;
+		if (!src.trim() || !src.endsWith(".css")) return err(ThemeManagerError.themeCssSrcInvalid(src));
+	}
+
+	return ok();
+}
+
 function validateThemeManager<const Themes extends ThemesRecord>(
 	themeManager: ThemeManager<Themes>,
 ): Result<void, ThemeManagerError[]> {
 	const errors = [];
 
 	if (themeManager.themeIds.length < 1) errors.push(ThemeManagerError.noThemes);
+
+	for (const theme of Object.values(themeManager.themes)) {
+		const themeResult = validateTheme(theme);
+		if (themeResult.isErr()) errors.push(themeResult.error);
+	}
 
 	const selectedThemeResult = validateRequestedTheme(themeManager, themeManager.selectedTheme);
 	if (selectedThemeResult.isErr()) errors.push(selectedThemeResult.error);
@@ -285,41 +307,81 @@ function updateColorScheme<const Themes extends ThemesRecord>(themeManager: Them
 
 	if (!themeColorMetaElement) {
 		themeColorMetaElement = document.createElement("meta");
-		themeColorMetaElement.setAttribute("name", "theme-color");
+		themeColorMetaElement.name = "theme-color";
 		document.head.appendChild(themeColorMetaElement);
 	}
 
-	themeColorMetaElement.setAttribute("content", resolvedColor);
+	themeColorMetaElement.content = resolvedColor;
+}
+
+export function getThemeClass<const Themes extends ThemesRecord>(
+	themeManager: ThemeManager<Themes>,
+	theme: keyof Themes,
+) {
+	const themeClasses = themeManager.themeClasses;
+	return (themeClasses && theme in themeClasses && themeClasses[theme] ? themeClasses[theme] : theme) as string;
+}
+
+function cleanUpStaleCssLinks<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
+	if (!BROWSER) return;
+
+	const staleSources = Object.values(themeManager.themes)
+		.filter(hasCss)
+		.filter((theme) => theme.id !== themeManager.resolvedTheme && theme.css.lazyLoading)
+		.map((theme) => theme.css.src);
+
+	const staleLinkElements = document
+		.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')
+		.values()
+		.filter((linkElement) => staleSources.includes(linkElement.getAttribute("href") ?? ""));
+
+	for (const linkElement of staleLinkElements) linkElement.remove();
+}
+
+function updateCssLinks<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
+	if (!BROWSER) return;
+
+	cleanUpStaleCssLinks(themeManager);
+
+	const sources = Object.values(themeManager.themes)
+		.filter(hasCss)
+		.filter((theme) => !theme.css.lazyLoading || (theme.css.lazyLoading && theme.id === themeManager.resolvedTheme))
+		.map((theme) => encodeURI(theme.css.src));
+
+	for (const source of sources) {
+		let linkElement = document.querySelector<HTMLLinkElement>(`link[rel="stylesheet"][href="${source}"]`);
+
+		if (!linkElement) {
+			linkElement = document.createElement("link");
+			linkElement.rel = "stylesheet";
+			linkElement.href = source;
+
+			document.head.appendChild(linkElement);
+		}
+	}
+}
+
+function cleanUpStaleThemeClasses<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
+	if (!BROWSER) return;
+
+	const staleClasses = themeManager.themeIds
+		.filter((themeId) => themeId !== themeManager.resolvedTheme)
+		.map((themeId) => getThemeClass(themeManager, themeId));
+
+	for (const className of staleClasses) document.documentElement.classList.remove(className);
 }
 
 function updateAttributes<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
-	if (!BROWSER) return () => {};
+	if (!BROWSER) return;
 
-	const resolvedTheme = themeManager.resolvedTheme;
-	const addedClasses: string[] = [];
+	cleanUpStaleThemeClasses(themeManager);
 
 	for (const attribute of themeManager.attributes) {
 		if (attribute === "class") {
-			const themeClasses = themeManager.themeClasses;
-
-			const themeClass = (
-				themeClasses && resolvedTheme in themeClasses && themeClasses[resolvedTheme]
-					? themeClasses[resolvedTheme]
-					: resolvedTheme
-			) as string;
-
+			const themeClass = getThemeClass(themeManager, themeManager.resolvedTheme);
 			document.documentElement.classList.add(themeClass);
-			addedClasses.push(themeClass);
-		} else {
-			document.documentElement.setAttribute(attribute, resolvedTheme as string);
-		}
+		} else document.documentElement.setAttribute(attribute, themeManager.resolvedTheme as string);
 	}
-
-	return () => {
-		for (const className of addedClasses) {
-			document.documentElement.classList.remove(className);
-		}
-	};
 }
 
 function registerMediaListener<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
@@ -339,12 +401,8 @@ export function registerThemeManager<const Themes extends ThemesRecord>(themeMan
 	registerMediaListener(themeManager);
 
 	$effect(() => {
+		updateCssLinks(themeManager);
 		updateColorScheme(themeManager);
-
-		const cleanUpAttributes = updateAttributes(themeManager);
-
-		return () => {
-			cleanUpAttributes();
-		};
+		updateAttributes(themeManager);
 	});
 }

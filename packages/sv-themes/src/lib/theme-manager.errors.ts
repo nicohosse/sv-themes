@@ -2,14 +2,25 @@ import type { SystemTheme } from "./theme-manager.svelte.ts";
 
 export type ThemeManagerError =
 	| { type: "NoThemes" }
+	| { type: "DuplicateTheme"; theme: string }
 	| { type: "ThemeNotFound" }
+	| { type: "ThemeCssSrcInvalid"; src: string }
 	| { type: "SystemThemeUnassigned"; systemTheme: SystemTheme }
 	| { type: "SystemThemesDisabled" }
 	| { type: "SystemThemeInvalidType"; systemTheme: SystemTheme };
 
 export const ThemeManagerError = {
 	noThemes: { type: "NoThemes" } as const satisfies ThemeManagerError,
+
+	duplicateTheme(theme: string): ThemeManagerError {
+		return { type: "DuplicateTheme", theme };
+	},
+
 	themeNotFound: { type: "ThemeNotFound" } as const satisfies ThemeManagerError,
+
+	themeCssSrcInvalid(src: string): ThemeManagerError {
+		return { type: "ThemeCssSrcInvalid", src };
+	},
 
 	systemThemeUnassigned(systemTheme: SystemTheme): ThemeManagerError {
 		return { type: "SystemThemeUnassigned", systemTheme };
@@ -27,8 +38,14 @@ export function getErrorMessage(error: ThemeManagerError): string {
 		case "NoThemes":
 			return "At least one theme is required.";
 
+		case "DuplicateTheme":
+			return `Duplicate theme: ${error.theme}`;
+
 		case "ThemeNotFound":
 			return "Theme not found.";
+
+		case "ThemeCssSrcInvalid":
+			return `Theme CSS src is invalid: ${error.src}`;
 
 		case "SystemThemeUnassigned":
 			return `System theme '${error.systemTheme}' has no valid assigned theme.`;
