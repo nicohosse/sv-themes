@@ -1,7 +1,7 @@
 import { BROWSER } from "esm-env";
 import { err, ok, type Result } from "neverthrow";
 import { resolveCssColor } from "./resolve-css-color.ts";
-import { hasCss, type Theme, type ThemeAttribute, type ThemesRecord } from "./theme.ts";
+import { hasCss, loadTheme, type Theme, type ThemeAttribute, type ThemesRecord, unloadTheme } from "./theme.ts";
 import { getErrorMessage, ThemeManagerError } from "./theme-manager.errors.js";
 
 export function createThemes<const Themes extends readonly Theme[]>(
@@ -34,43 +34,42 @@ export type DefaultTheme = keyof typeof DEFAULT_THEMES;
 
 export type SystemTheme = "light" | "dark";
 
-const INTERNAL = Symbol("internal");
-
 export interface ThemeManager<Themes extends ThemesRecord> {
 	readonly themes: Themes;
 	readonly themeIds: (keyof Themes)[];
 
 	readonly enableSystemThemes?: boolean;
+	systemTheme?: SystemTheme;
 	readonly systemThemes?: Partial<Record<SystemTheme, keyof Themes>>;
+	readonly resolvedSystemThemes: Record<SystemTheme, keyof Themes>;
 	readonly useSystemTheme?: boolean;
 	setUseSystemTheme: (useSystemTheme: boolean) => Result<void, ThemeManagerError>;
-
-	readonly resolvedTheme: keyof Themes;
-	readonly selectedTheme: keyof Themes;
-	setSelectedTheme: (theme: keyof Themes) => Result<void, ThemeManagerError>;
-	setTheme: (theme: keyof Themes | "system") => Result<void, ThemeManagerError>;
-
-	readonly useColorScheme?: boolean;
 
 	readonly hasLightTheme?: boolean;
 	readonly hasDarkTheme?: boolean;
 	readonly hasLightSystemTheme?: boolean;
 	readonly hasDarkSystemTheme?: boolean;
 
+	readonly resolvedTheme: keyof Themes;
+	readonly selectedTheme: keyof Themes;
+	previouslyAppliedTheme?: keyof Themes;
+	setSelectedTheme: (theme: keyof Themes) => Result<void, ThemeManagerError>;
+	setTheme: (theme: keyof Themes | "system") => Result<void, ThemeManagerError>;
+
+	readonly useColorScheme?: boolean;
+
 	readonly attributes: ThemeAttribute[];
 	readonly themeClasses?: Partial<Record<keyof Themes, string>>;
-
-	[INTERNAL]: {
-		systemTheme?: SystemTheme;
-		resolvedSystemThemes: Record<SystemTheme, keyof Themes>;
-	};
 }
+
+export type ThemesOf<M> = M extends ThemeManager<infer T> ? T : never;
 
 export function validateRequestedTheme<const Themes extends ThemesRecord>(
 	themeManager: ThemeManager<Themes>,
 	requestedTheme: keyof Themes,
 ): Result<void, ThemeManagerError> {
-	if (!themeManager.themeIds.includes(requestedTheme)) return err(ThemeManagerError.themeNotFound);
+	if (!themeManager.themeIds.includes(requestedTheme))
+		return err(ThemeManagerError.themeNotFound(requestedTheme as string));
 
 	return ok();
 }
@@ -81,9 +80,7 @@ function validateSystemTheme<const Themes extends ThemesRecord>(
 ): Result<void, ThemeManagerError> {
 	const hasSystemTheme = systemTheme === "light" ? themeManager.hasLightSystemTheme : themeManager.hasDarkSystemTheme;
 	const resolvedSystemThemeId =
-		systemTheme === "light"
-			? themeManager[INTERNAL].resolvedSystemThemes.light
-			: themeManager[INTERNAL].resolvedSystemThemes.dark;
+		systemTheme === "light" ? themeManager.resolvedSystemThemes.light : themeManager.resolvedSystemThemes.dark;
 
 	if (hasSystemTheme && themeManager.themes[resolvedSystemThemeId].type !== systemTheme)
 		return err(ThemeManagerError.systemThemeInvalidType(systemTheme));
@@ -95,8 +92,10 @@ function validateSystemTheme<const Themes extends ThemesRecord>(
 function validateTheme(theme: Theme): Result<void, ThemeManagerError> {
 	if (theme.css) {
 		const src = theme.css.src;
-		if (!src.trim() || !src.endsWith(".css")) return err(ThemeManagerError.themeCssSrcInvalid(src));
+		if (!src.trim() || !src.endsWith(".css")) return err(ThemeManagerError.themeInvalidCssSrc(src));
 	}
+
+	if (theme.id === "system") return err(ThemeManagerError.themeInvalidId(theme.id));
 
 	return ok();
 }
@@ -157,7 +156,6 @@ type CreateThemeManagerInput<Themes extends ThemesRecord> = {
 	| "setSelectedTheme"
 	| "selectedTheme"
 	| "setUseSystemTheme"
-	| typeof INTERNAL
 > &
 	Partial<Pick<ThemeManager<Themes>, "attributes" | "useColorScheme" | "useSystemTheme">>;
 
@@ -168,20 +166,24 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 	useColorScheme = true,
 	useSystemTheme = true,
 	systemThemes,
+	systemTheme,
 	attributes = ["class", "data-theme"],
 	themeClasses,
 }: CreateThemeManagerInput<Themes>): Result<ThemeManager<Themes>, ThemeManagerError[]> {
 	const state = $state({
 		useSystemTheme,
 		selectedTheme: initialTheme,
-		systemTheme: "light" as SystemTheme,
+		previouslyAppliedTheme: initialTheme,
+		systemTheme,
 	});
 
 	const themeIds = Object.keys(themes) as (keyof Themes)[];
 	const resolvedSystemThemes = resolveSystemThemes(themes, systemThemes);
 
 	const resolvedTheme = $derived.by(() => {
-		const resolvedThemeId = state.useSystemTheme ? resolvedSystemThemes[state.systemTheme] : state.selectedTheme;
+		const resolvedThemeId =
+			state.useSystemTheme && state.systemTheme ? resolvedSystemThemes[state.systemTheme] : state.selectedTheme;
+
 		return themeIds.includes(resolvedThemeId) ? resolvedThemeId : initialTheme;
 	});
 
@@ -219,18 +221,26 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 		themeIds,
 		attributes,
 		themeClasses,
-		enableSystemThemes,
-		systemThemes,
 		useColorScheme,
-		hasLightTheme,
-		hasDarkTheme,
-		hasLightSystemTheme,
-		hasDarkSystemTheme,
 
+		enableSystemThemes,
+		get systemTheme() {
+			return state.systemTheme;
+		},
+		set systemTheme(value) {
+			state.systemTheme = value;
+		},
+		systemThemes,
+		resolvedSystemThemes,
 		get useSystemTheme() {
 			return state.useSystemTheme;
 		},
 		setUseSystemTheme,
+
+		hasLightTheme,
+		hasDarkTheme,
+		hasLightSystemTheme,
+		hasDarkSystemTheme,
 
 		get resolvedTheme() {
 			return resolvedTheme;
@@ -241,18 +251,14 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 		},
 		setSelectedTheme,
 
-		setTheme,
-
-		[INTERNAL]: {
-			get systemTheme() {
-				return state.systemTheme;
-			},
-			set systemTheme(value) {
-				state.systemTheme = value;
-			},
-
-			resolvedSystemThemes,
+		get previouslyAppliedTheme() {
+			return state.previouslyAppliedTheme;
 		},
+		set previouslyAppliedTheme(value) {
+			state.previouslyAppliedTheme = value;
+		},
+
+		setTheme,
 	};
 
 	return validateThemeManager(themeManager).map(() => themeManager);
@@ -322,43 +328,15 @@ export function getThemeClass<const Themes extends ThemesRecord>(
 	return (themeClasses && theme in themeClasses && themeClasses[theme] ? themeClasses[theme] : theme) as string;
 }
 
-function cleanUpStaleCssLinks<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
+function unloadStaleThemes<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
 	if (!BROWSER) return;
 
-	const staleSources = Object.values(themeManager.themes)
+	Object.values(themeManager.themes)
 		.filter(hasCss)
 		.filter((theme) => theme.id !== themeManager.resolvedTheme && theme.css.lazyLoading)
-		.map((theme) => theme.css.src);
-
-	const staleLinkElements = document
-		.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')
-		.values()
-		.filter((linkElement) => staleSources.includes(linkElement.getAttribute("href") ?? ""));
-
-	for (const linkElement of staleLinkElements) linkElement.remove();
-}
-
-function updateCssLinks<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
-	if (!BROWSER) return;
-
-	cleanUpStaleCssLinks(themeManager);
-
-	const sources = Object.values(themeManager.themes)
-		.filter(hasCss)
-		.filter((theme) => !theme.css.lazyLoading || (theme.css.lazyLoading && theme.id === themeManager.resolvedTheme))
-		.map((theme) => encodeURI(theme.css.src));
-
-	for (const source of sources) {
-		let linkElement = document.querySelector<HTMLLinkElement>(`link[rel="stylesheet"][href="${source}"]`);
-
-		if (!linkElement) {
-			linkElement = document.createElement("link");
-			linkElement.rel = "stylesheet";
-			linkElement.href = source;
-
-			document.head.appendChild(linkElement);
-		}
-	}
+		.forEach((theme) => {
+			unloadTheme(theme);
+		});
 }
 
 function cleanUpStaleThemeClasses<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
@@ -388,7 +366,7 @@ function registerMediaListener<const Themes extends ThemesRecord>(themeManager: 
 	if (!themeManager.enableSystemThemes || !BROWSER) return;
 
 	const media = window.matchMedia("(prefers-color-scheme: dark)");
-	const updateSystemTheme = (matches: boolean) => (themeManager[INTERNAL].systemTheme = matches ? "dark" : "light");
+	const updateSystemTheme = (matches: boolean) => (themeManager.systemTheme = matches ? "dark" : "light");
 
 	updateSystemTheme(media.matches);
 
@@ -397,12 +375,32 @@ function registerMediaListener<const Themes extends ThemesRecord>(themeManager: 
 	});
 }
 
+async function applyTheme<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>, theme: Theme) {
+	try {
+		await loadTheme(theme);
+	} catch {
+		if (themeManager.previouslyAppliedTheme && theme.id !== themeManager.previouslyAppliedTheme) {
+			console.error(`Failed to load theme '${theme.id}'. Falling back to previous theme.`);
+			themeManager.setTheme(themeManager.previouslyAppliedTheme);
+		} else console.error(`Failed to load theme '${theme.id}'. Aborting.`);
+
+		// TODO: Ensure that if all themes fail to load a proper error is emitted.
+
+		return;
+	}
+
+	unloadStaleThemes(themeManager);
+	updateColorScheme(themeManager);
+	updateAttributes(themeManager);
+
+	themeManager.previouslyAppliedTheme = theme.id;
+}
+
 export function registerThemeManager<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
 	registerMediaListener(themeManager);
 
 	$effect(() => {
-		updateCssLinks(themeManager);
-		updateColorScheme(themeManager);
-		updateAttributes(themeManager);
+		const resolvedTheme = themeManager.themes[themeManager.resolvedTheme];
+		applyTheme(themeManager, resolvedTheme);
 	});
 }

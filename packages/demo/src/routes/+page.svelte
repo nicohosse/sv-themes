@@ -1,18 +1,27 @@
 <script lang="ts">
+	import { themeSelector } from "sv-themes";
 	import { themeManager } from "$lib/theme-manager.svelte";
 </script>
 
 <main>
-	{#each themeManager.themeIds as theme}
+	{#each themeManager.themeIds as themeId}
 		<button
 			type="button"
-			onclick={() => themeManager.setTheme(theme)}
-			aria-pressed={themeManager.selectedTheme === theme}
+			use:themeSelector={{
+				theme: themeId,
+		 		themeManager
+			}}
 		>
-			{theme}
+			{themeId}
 		</button>
 	{/each}
-	<button type="button" onclick={() => themeManager.setTheme("system")} aria-pressed={themeManager.useSystemTheme}>
+	<button
+		type="button"
+		use:themeSelector={{
+			theme: "system",
+ 			themeManager
+		}}
+	>
 		System
 	</button>
 </main>

@@ -3,8 +3,9 @@ import type { SystemTheme } from "./theme-manager.svelte.ts";
 export type ThemeManagerError =
 	| { type: "NoThemes" }
 	| { type: "DuplicateTheme"; theme: string }
-	| { type: "ThemeNotFound" }
-	| { type: "ThemeCssSrcInvalid"; src: string }
+	| { type: "ThemeNotFound"; theme: string }
+	| { type: "ThemeInvalidCssSrc"; src: string }
+	| { type: "ThemeInvalidId"; id: string }
 	| { type: "SystemThemeUnassigned"; systemTheme: SystemTheme }
 	| { type: "SystemThemesDisabled" }
 	| { type: "SystemThemeInvalidType"; systemTheme: SystemTheme };
@@ -16,10 +17,16 @@ export const ThemeManagerError = {
 		return { type: "DuplicateTheme", theme };
 	},
 
-	themeNotFound: { type: "ThemeNotFound" } as const satisfies ThemeManagerError,
+	themeNotFound(theme: string): ThemeManagerError {
+		return { type: "ThemeNotFound", theme };
+	},
 
-	themeCssSrcInvalid(src: string): ThemeManagerError {
-		return { type: "ThemeCssSrcInvalid", src };
+	themeInvalidCssSrc(src: string): ThemeManagerError {
+		return { type: "ThemeInvalidCssSrc", src };
+	},
+
+	themeInvalidId(id: string): ThemeManagerError {
+		return { type: "ThemeInvalidId", id };
 	},
 
 	systemThemeUnassigned(systemTheme: SystemTheme): ThemeManagerError {
@@ -42,16 +49,19 @@ export function getErrorMessage(error: ThemeManagerError): string {
 			return `Duplicate theme: ${error.theme}`;
 
 		case "ThemeNotFound":
-			return "Theme not found.";
+			return `Theme '${error.theme}' not found.`;
 
-		case "ThemeCssSrcInvalid":
+		case "ThemeInvalidCssSrc":
 			return `Theme CSS src is invalid: ${error.src}`;
+
+		case "ThemeInvalidId":
+			return `Theme id '${error.id}' is invalid. The id 'system' is reserved.`;
 
 		case "SystemThemeUnassigned":
 			return `System theme '${error.systemTheme}' has no valid assigned theme.`;
 
 		case "SystemThemesDisabled":
-			return "System themes are disabled";
+			return "System themes are disabled.";
 
 		case "SystemThemeInvalidType":
 			return `System theme '${error.systemTheme}' needs to be assigned to a theme with type '${error.systemTheme}'.`;

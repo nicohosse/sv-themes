@@ -1,5 +1,5 @@
 import type { Handle } from "@sveltejs/kit";
-import { getCssLink, hasCss, type Theme, type ThemesRecord } from "./theme.ts";
+import { getCssLinks, hasCss, type Theme, type ThemesRecord } from "./theme.ts";
 import { getErrorMessage } from "./theme-manager.errors.ts";
 import { getThemeClass, type ThemeManager, validateRequestedTheme } from "./theme-manager.svelte.ts";
 
@@ -58,7 +58,10 @@ export function createThemeHandle<Themes extends ThemesRecord>(themeManager: The
 					return `<html${updatedAttributes}>`;
 				});
 
-				return newHtml.replaceAll("%sv-themes.css%", themesToLoad.map((theme) => getCssLink(theme)).join("\n"));
+				return newHtml.replaceAll(
+					"%sv-themes.css%",
+					themesToLoad.map((theme) => getCssLinks(theme)?.join("\n")).join("\n"),
+				);
 			},
 		});
 
