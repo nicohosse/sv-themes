@@ -1,8 +1,10 @@
 import { BROWSER } from "esm-env";
-import { err, ok, type Result } from "neverthrow";
-import { resolveCssColor } from "./resolve-css-color.ts";
+import { err, ok, okAsync, type Result, ResultAsync } from "neverthrow";
+import { onMount } from "svelte";
+import { type CookieOptions, getCookie, setCookie } from "../utils/cookie.ts";
+import { resolveCssColor } from "../utils/resolve-css-color.ts";
 import { hasCss, loadTheme, type Theme, type ThemeAttribute, type ThemesRecord, unloadTheme } from "./theme.ts";
-import { getErrorMessage, ThemeManagerError } from "./theme-manager.errors.js";
+import { getErrorMessage, ThemeManagerError } from "./theme-manager.errors.ts";
 
 export function createThemes<const Themes extends readonly Theme[]>(
 	themes: Themes,
@@ -34,12 +36,35 @@ export type DefaultTheme = keyof typeof DEFAULT_THEMES;
 
 export type SystemTheme = "light" | "dark";
 
+const DEFAULT_THEME_COOKIE_OPTIONS: CookieOptions = {
+	name: "theme",
+} as const;
+
+export type StorageMethod = "localStorage" | "sessionStorage" | "cookie";
+const STORAGE_METHOD_PRIORITY: StorageMethod[] = ["sessionStorage", "localStorage", "cookie"];
+export const HYBRID_STORAGE_METHODS: StorageMethod[] = ["cookie", "localStorage"] as const;
+
+export interface StorageOptions {
+	methods: StorageMethod[];
+	storageKey: string;
+	cookie: CookieOptions;
+}
+
+const DEFAULT_STORAGE_HYBRID: StorageOptions = {
+	methods: HYBRID_STORAGE_METHODS,
+	storageKey: "theme",
+	cookie: DEFAULT_THEME_COOKIE_OPTIONS,
+} as const;
+
+const INTERNAL = Symbol("internal");
+
+// TODO: Make sure readonly fields have no public setter.
 export interface ThemeManager<Themes extends ThemesRecord> {
 	readonly themes: Themes;
 	readonly themeIds: (keyof Themes)[];
 
 	readonly enableSystemThemes?: boolean;
-	systemTheme?: SystemTheme;
+	readonly systemTheme?: SystemTheme;
 	readonly systemThemes?: Partial<Record<SystemTheme, keyof Themes>>;
 	readonly resolvedSystemThemes: Record<SystemTheme, keyof Themes>;
 	readonly useSystemTheme?: boolean;
@@ -52,14 +77,22 @@ export interface ThemeManager<Themes extends ThemesRecord> {
 
 	readonly resolvedTheme: keyof Themes;
 	readonly selectedTheme: keyof Themes;
-	previouslyAppliedTheme?: keyof Themes;
+	readonly previouslyAppliedTheme?: keyof Themes;
 	setSelectedTheme: (theme: keyof Themes) => Result<void, ThemeManagerError>;
-	setTheme: (theme: keyof Themes | "system") => Result<void, ThemeManagerError>;
+	setTheme: (theme: keyof Themes | "system", shouldPersist?: boolean) => ResultAsync<void, ThemeManagerError>;
 
 	readonly useColorScheme?: boolean;
 
+	readonly storage?: StorageOptions;
+	readonly enableTabSync?: boolean;
+
 	readonly attributes: ThemeAttribute[];
 	readonly themeClasses?: Partial<Record<keyof Themes, string>>;
+
+	[INTERNAL]: {
+		setPreviouslyAppliedTheme: (theme: keyof Themes) => void;
+		setSystemTheme: (systemTheme: SystemTheme) => void;
+	};
 }
 
 export type ThemesOf<M> = M extends ThemeManager<infer T> ? T : never;
@@ -156,8 +189,10 @@ type CreateThemeManagerInput<Themes extends ThemesRecord> = {
 	| "setSelectedTheme"
 	| "selectedTheme"
 	| "setUseSystemTheme"
+	| "enableTabSync"
+	| typeof INTERNAL
 > &
-	Partial<Pick<ThemeManager<Themes>, "attributes" | "useColorScheme" | "useSystemTheme">>;
+	Partial<Pick<ThemeManager<Themes>, "attributes" | "useColorScheme" | "useSystemTheme" | "enableTabSync">>;
 
 export function createThemeManager<const Themes extends ThemesRecord>({
 	themes,
@@ -167,6 +202,8 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 	useSystemTheme = true,
 	systemThemes,
 	systemTheme,
+	storage = DEFAULT_STORAGE_HYBRID,
+	enableTabSync = true,
 	attributes = ["class", "data-theme"],
 	themeClasses,
 }: CreateThemeManagerInput<Themes>): Result<ThemeManager<Themes>, ThemeManagerError[]> {
@@ -200,11 +237,22 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 		});
 	};
 
-	const setTheme = (theme: keyof Themes | "system") => {
-		return setUseSystemTheme(theme === "system").andThen(() => {
-			if (theme !== "system") return setSelectedTheme(theme);
-			return ok();
-		});
+	const setTheme = (theme: keyof Themes | "system", shouldPersist = true) => {
+		return setUseSystemTheme(theme === "system")
+			.asyncAndThen(() =>
+				shouldPersist
+					? ResultAsync.fromPromise(persistTheme(themeManager, theme), () => undefined as never)
+					: okAsync(),
+			)
+			.andThen(() => (theme === "system" ? okAsync() : setSelectedTheme(theme)));
+	};
+
+	const setSystemTheme = (systemTheme: SystemTheme) => {
+		state.systemTheme = systemTheme;
+	};
+
+	const setPreviouslyAppliedTheme = (theme: keyof Themes) => {
+		state.previouslyAppliedTheme = theme;
 	};
 
 	const hasLightTheme = !!Object.values(themes).find((theme) => theme.type === "light");
@@ -219,22 +267,20 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 	const themeManager: ThemeManager<Themes> = {
 		themes,
 		themeIds,
-		attributes,
-		themeClasses,
-		useColorScheme,
 
 		enableSystemThemes,
+
 		get systemTheme() {
 			return state.systemTheme;
 		},
-		set systemTheme(value) {
-			state.systemTheme = value;
-		},
+
 		systemThemes,
 		resolvedSystemThemes,
+
 		get useSystemTheme() {
 			return state.useSystemTheme;
 		},
+
 		setUseSystemTheme,
 
 		hasLightTheme,
@@ -249,16 +295,27 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 		get selectedTheme() {
 			return state.selectedTheme;
 		},
+
 		setSelectedTheme,
 
 		get previouslyAppliedTheme() {
 			return state.previouslyAppliedTheme;
 		},
-		set previouslyAppliedTheme(value) {
-			state.previouslyAppliedTheme = value;
-		},
 
 		setTheme,
+
+		useColorScheme,
+
+		storage,
+		enableTabSync,
+
+		attributes,
+		themeClasses,
+
+		[INTERNAL]: {
+			setSystemTheme,
+			setPreviouslyAppliedTheme,
+		},
 	};
 
 	return validateThemeManager(themeManager).map(() => themeManager);
@@ -275,7 +332,7 @@ function updateColorScheme<const Themes extends ThemesRecord>(themeManager: Them
 
 	if (!colorSchemeMetaElement) {
 		colorSchemeMetaElement = document.createElement("meta");
-		colorSchemeMetaElement.setAttribute("name", "color-scheme");
+		colorSchemeMetaElement.name = "color-scheme";
 		document.head.appendChild(colorSchemeMetaElement);
 	}
 
@@ -288,7 +345,7 @@ function updateColorScheme<const Themes extends ThemesRecord>(themeManager: Them
 		else if (firstTheme.type === "dark" && themeManager.hasLightTheme) colorSchemeContent = "dark light";
 		else if (!themeManager.hasLightTheme && themeManager.hasDarkTheme) colorSchemeContent = "dark";
 
-		colorSchemeMetaElement.setAttribute("content", colorSchemeContent);
+		colorSchemeMetaElement.content = colorSchemeContent;
 	}
 
 	if (!resolvedTheme.color) return;
@@ -366,7 +423,7 @@ function registerMediaListener<const Themes extends ThemesRecord>(themeManager: 
 	if (!themeManager.enableSystemThemes || !BROWSER) return;
 
 	const media = window.matchMedia("(prefers-color-scheme: dark)");
-	const updateSystemTheme = (matches: boolean) => (themeManager.systemTheme = matches ? "dark" : "light");
+	const updateSystemTheme = (matches: boolean) => themeManager[INTERNAL].setSystemTheme(matches ? "dark" : "light");
 
 	updateSystemTheme(media.matches);
 
@@ -375,7 +432,7 @@ function registerMediaListener<const Themes extends ThemesRecord>(themeManager: 
 	});
 }
 
-async function applyTheme<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>, theme: Theme) {
+async function applyThemeToDom<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>, theme: Theme) {
 	try {
 		await loadTheme(theme);
 	} catch {
@@ -393,14 +450,166 @@ async function applyTheme<const Themes extends ThemesRecord>(themeManager: Theme
 	updateColorScheme(themeManager);
 	updateAttributes(themeManager);
 
-	themeManager.previouslyAppliedTheme = theme.id;
+	themeManager[INTERNAL].setPreviouslyAppliedTheme(theme.id);
+}
+
+async function getPersistedTheme<const Themes extends ThemesRecord>(
+	themeManager: ThemeManager<Themes>,
+	serverSideOnly = false,
+	syncOnMiss = true,
+	errorOnMiss = false,
+) {
+	if (!themeManager.storage) return;
+
+	const persistedThemes: Map<StorageMethod, string> = new Map();
+
+	for (const storageMethod of themeManager.storage.methods) {
+		const isLocalStorage = storageMethod === "localStorage";
+		const isSessionStorage = storageMethod === "sessionStorage";
+		const isCookie = storageMethod === "cookie";
+
+		if (BROWSER && isLocalStorage && !serverSideOnly) {
+			const storedTheme = localStorage.getItem(themeManager.storage.storageKey);
+
+			if (!storedTheme) {
+				if (errorOnMiss)
+					console.error(
+						`Failed to get theme from local storage. ${syncOnMiss ? "Marking as desynced." : "Skipping."}.`,
+					);
+
+				continue;
+			}
+
+			persistedThemes.set(storageMethod, storedTheme);
+		} else if (!BROWSER && isLocalStorage && !serverSideOnly)
+			console.error(`Tried to get theme from local storage from a non-browser context. Skipping.`);
+		else if (BROWSER && isSessionStorage && !serverSideOnly) {
+			const storedTheme = sessionStorage.getItem(themeManager.storage.storageKey);
+
+			if (!storedTheme) {
+				if (errorOnMiss)
+					console.error(
+						`Failed to get theme from session storage. ${syncOnMiss ? "Marking as desynced." : "Skipping."}.`,
+					);
+
+				continue;
+			}
+
+			persistedThemes.set(storageMethod, storedTheme);
+		} else if (!BROWSER && isSessionStorage && !serverSideOnly)
+			console.error(`Tried to get theme from session storage from a non-browser context. Skipping.`);
+		else if (isCookie) {
+			const storedTheme = await getCookie(themeManager.storage.cookie.name);
+
+			if (!storedTheme) {
+				if (errorOnMiss)
+					console.error(`Failed to get theme from cookie. ${syncOnMiss ? "Marking as desynced." : "Skipping."}.`);
+
+				continue;
+			}
+
+			persistedThemes.set(storageMethod, storedTheme);
+		}
+	}
+
+	let dominantTheme: string | undefined;
+
+	for (const storageMethod of STORAGE_METHOD_PRIORITY) {
+		if (!persistedThemes.has(storageMethod)) continue;
+
+		dominantTheme = persistedThemes.get(storageMethod);
+		break;
+	}
+
+	if (syncOnMiss && dominantTheme && BROWSER) {
+		const activeMethods: StorageMethod[] = serverSideOnly ? ["cookie"] : themeManager.storage.methods;
+		const missingAny = activeMethods.some((storageMethod) => !persistedThemes.has(storageMethod));
+
+		if (missingAny) persistTheme(themeManager, dominantTheme);
+	}
+
+	return dominantTheme;
+}
+
+async function persistTheme<const Themes extends ThemesRecord>(
+	themeManager: ThemeManager<Themes>,
+	theme: keyof Themes,
+) {
+	if (!themeManager.storage) return;
+
+	const useLocalStorage = themeManager.storage.methods?.includes("localStorage");
+	const useSessionStorage = themeManager.storage.methods?.includes("sessionStorage");
+	const useCookie = themeManager.storage.methods?.includes("cookie");
+
+	const themeId = theme as string;
+
+	if (BROWSER && useLocalStorage) localStorage.setItem(themeManager.storage.storageKey, themeId);
+	else if (!BROWSER && useLocalStorage)
+		console.error(`Tried to save theme '${themeId}' to local storage in a non-browser context. Skipping.`);
+
+	if (BROWSER && useSessionStorage) sessionStorage.setItem(themeManager.storage.storageKey, themeId);
+	else if (!BROWSER && useSessionStorage)
+		console.error(`Tried to save theme '${themeId}' to session storage in a non-browser context. Skipping.`);
+
+	if (useCookie) await setCookie(theme as string, themeManager.storage.cookie);
+}
+
+function registerStorageListener<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
+	if (!BROWSER || !themeManager.storage || !themeManager.enableTabSync) return () => {};
+
+	const useLocalStorage = themeManager.storage.methods?.includes("localStorage");
+	const useSessionStorage = themeManager.storage.methods?.includes("sessionStorage");
+
+	if (!useLocalStorage && !useSessionStorage) return () => {};
+
+	const onStorage = (event: StorageEvent) => {
+		const isThemeKey = event.key === themeManager.storage?.storageKey;
+		if (!isThemeKey) return;
+
+		const isLocalStorage = event.storageArea === localStorage;
+		const isSessionStorage = event.storageArea === sessionStorage;
+
+		if ((useLocalStorage && isLocalStorage) || (useSessionStorage && isSessionStorage)) {
+			const storageTheme = event.newValue as keyof Themes | "system";
+
+			if (
+				(storageTheme !== "system" && !themeManager.themeIds.includes(storageTheme)) ||
+				(storageTheme === "system" && themeManager.useSystemTheme) ||
+				(storageTheme !== "system" && themeManager.selectedTheme === storageTheme)
+			)
+				return;
+
+			themeManager.setTheme(storageTheme);
+		}
+	};
+
+	globalThis.addEventListener("storage", onStorage);
+
+	return () => {
+		globalThis.removeEventListener("storage", onStorage);
+	};
 }
 
 export function registerThemeManager<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
 	registerMediaListener(themeManager);
 
+	const removeStorageListener = registerStorageListener(themeManager);
+
+	onMount(async () => {
+		if (!themeManager.storage) return;
+
+		const persistedTheme = await getPersistedTheme(themeManager);
+		if (!persistedTheme) return;
+
+		themeManager.setTheme(persistedTheme);
+	});
+
 	$effect(() => {
 		const resolvedTheme = themeManager.themes[themeManager.resolvedTheme];
-		applyTheme(themeManager, resolvedTheme);
+		applyThemeToDom(themeManager, resolvedTheme);
+
+		return () => {
+			removeStorageListener();
+		};
 	});
 }
