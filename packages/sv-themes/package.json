@@ -12,7 +12,7 @@
 		"directory": "packages/sv-themes"
 	},
 	"scripts": {
-		"build": "svelte-package",
+		"build": "rimraf dist && svelte-package",
 		"prepare": "svelte-kit sync",
 		"typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"typecheck:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
@@ -37,25 +37,23 @@
 			"svelte": "./dist/index.js",
 			"default": "./dist/index.js"
 		},
-		"./server": {
-			"types": "./dist/core/server.d.ts",
-			"svelte": "./dist/core/server.js",
-			"default": "./dist/core/server.js"
+		"./kit": {
+			"types": "./dist/core/kit.d.ts",
+			"svelte": "./dist/core/kit.js",
+			"default": "./dist/core/kit.js"
 		}
 	},
 	"peerDependencies": {
 		"svelte": "^5.0.0"
 	},
 	"devDependencies": {
-		"@sveltejs/adapter-auto": "^7.0.1",
 		"@sveltejs/kit": "^2.57.0",
 		"@sveltejs/package": "^2.5.7",
-		"@sveltejs/vite-plugin-svelte": "^7.0.0",
 		"publint": "^0.3.18",
+		"rimraf": "^6.1.3",
 		"svelte": "^5.55.2",
 		"svelte-check": "^4.4.6",
-		"typescript": "^6.0.2",
-		"vite": "^8.0.7"
+		"typescript": "^6.0.2"
 	},
 	"dependencies": {
 		"esm-env": "^1.2.2",

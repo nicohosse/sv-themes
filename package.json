@@ -9,7 +9,7 @@
 		"packages/*"
 	],
 	"scripts": {
-		"prepare": "bun run --filter \"*\" prepare",
+		"prepare": "bun run --filter \"*\" prepare && lefthook install",
 		"build": "bun run --filter \"*\" build",
 		"check": "bun run --filter \"*\" check",
 		"changeset": "changeset",
