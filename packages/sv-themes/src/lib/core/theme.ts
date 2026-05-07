@@ -4,6 +4,7 @@ export type ThemeAttribute = "class" | `data-${string}`;
 
 export interface Theme {
 	id: string;
+	className?: string;
 	type: "light" | "dark";
 	color?: string;
 	css?: {

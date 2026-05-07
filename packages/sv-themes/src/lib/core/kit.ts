@@ -1,4 +1,5 @@
 import type { Handle } from "@sveltejs/kit";
+import { getThemeScript } from "./script.ts";
 import { getSSRAttributes } from "./server.ts";
 import { getCssLinks, hasCss, type ThemesRecord } from "./theme.ts";
 import { getErrorMessage } from "./theme-manager.errors.ts";
@@ -17,7 +18,7 @@ export function createThemeHandle<Themes extends ThemesRecord>(themeManager: The
 		if (persistedTheme) themeManager.setTheme(persistedTheme, false);
 
 		// TODO: Figure out better scoping solution. Placeholder.
-		const forcedTheme = undefined;
+		const forcedTheme: string | undefined = undefined;
 
 		const forcedThemeResult = themeManager.setForcedTheme(forcedTheme);
 		if (forcedThemeResult.isErr()) throw new Error(getErrorMessage(forcedThemeResult.error));
@@ -56,9 +57,12 @@ export function createThemeHandle<Themes extends ThemesRecord>(themeManager: The
 					return `<html${updatedAttributes}>`;
 				});
 
+				const scriptContent = getThemeScript({ ...themeManager });
+				const scriptTag = `<script>${scriptContent}</script>`;
+
 				return newHtml.replace(
 					HEAD_CLOSE_REGEX,
-					`${themesToLoad.map((theme) => getCssLinks(theme)?.join("\n")).join("\n")}\n</head>`,
+					`${themesToLoad.map((theme) => getCssLinks(theme)?.join("\n")).join("\n")}\n${scriptTag}</head>`,
 				);
 			},
 		});
