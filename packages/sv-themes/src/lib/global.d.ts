@@ -2,7 +2,7 @@ declare global {
 	namespace App {
 		// interface Error {}
 		interface Locals {
-			forcedTheme?: string;
+			cspNonce?: string;
 		}
 		// interface PageData {}
 		// interface PageState {}

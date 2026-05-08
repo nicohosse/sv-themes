@@ -1,9 +1,9 @@
 import type { Handle } from "@sveltejs/kit";
-import { getThemeScript } from "./script.ts";
-import { getSSRAttributes } from "./server.ts";
-import { getCssLinks, hasCss, type ThemesRecord } from "./theme.ts";
-import { getErrorMessage } from "./theme-manager.errors.ts";
-import { getPersistedTheme, type ThemeManager } from "./theme-manager.svelte.ts";
+import { getThemeScript } from "./script.js";
+import { getSSRAttributes } from "./server.js";
+import { getCssLinks, hasCss, type ThemesRecord } from "./theme.js";
+import { getErrorMessage } from "./theme-manager.errors.js";
+import { getPersistedTheme, type ThemeManager } from "./theme-manager.svelte.js";
 
 const HTML_TAG_REGEX = /<html([^>]*)>/;
 const HEAD_CLOSE_REGEX = /<\/head>/;
@@ -57,8 +57,10 @@ export function createThemeHandle<Themes extends ThemesRecord>(themeManager: The
 					return `<html${updatedAttributes}>`;
 				});
 
+				const cspNonce = event.locals.cspNonce;
+
 				const scriptContent = getThemeScript({ ...themeManager });
-				const scriptTag = `<script>${scriptContent}</script>`;
+				const scriptTag = `<script${cspNonce ? `nonce=${cspNonce}` : ""}>${scriptContent}</script>`;
 
 				return newHtml.replace(
 					HEAD_CLOSE_REGEX,

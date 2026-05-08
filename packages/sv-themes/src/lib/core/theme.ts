@@ -24,8 +24,8 @@ export function getCssLinks(theme: Theme, preload = true) {
 
 	if (!src) return;
 
-	const links = [`<link rel="preload" href="${src}" as="style" />`];
-	if (preload) links.push(`<link rel="stylesheet" href="${src}" />`);
+	const links = [`<link rel="stylesheet" href="${src}" />`];
+	if (preload) links.push(`<link rel="preload" href="${src}" as="style" />`);
 
 	return links;
 }

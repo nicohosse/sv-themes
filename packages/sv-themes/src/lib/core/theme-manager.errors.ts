@@ -1,4 +1,4 @@
-import type { SystemTheme } from "./theme-manager.svelte.ts";
+import type { SystemTheme } from "./theme-manager.svelte.js";
 
 export type ThemeManagerError =
 	| { type: "NoThemes" }
@@ -8,7 +8,8 @@ export type ThemeManagerError =
 	| { type: "ThemeInvalidId"; id: string }
 	| { type: "SystemThemeUnassigned"; systemTheme: SystemTheme }
 	| { type: "SystemThemesDisabled" }
-	| { type: "SystemThemeInvalidType"; systemTheme: SystemTheme };
+	| { type: "SystemThemeInvalidType"; systemTheme: SystemTheme }
+	| { type: "Cancelled" };
 
 export const ThemeManagerError = {
 	noThemes: { type: "NoThemes" } as const satisfies ThemeManagerError,
@@ -38,6 +39,8 @@ export const ThemeManagerError = {
 	systemThemeInvalidType(systemTheme: SystemTheme): ThemeManagerError {
 		return { type: "SystemThemeInvalidType", systemTheme };
 	},
+
+	cancelled: { type: "Cancelled" } as const satisfies ThemeManagerError,
 };
 
 export function getErrorMessage(error: ThemeManagerError): string {
@@ -65,5 +68,8 @@ export function getErrorMessage(error: ThemeManagerError): string {
 
 		case "SystemThemeInvalidType":
 			return `System theme '${error.systemTheme}' needs to be assigned to a theme with type '${error.systemTheme}'.`;
+
+		case "Cancelled":
+			return "The operation has been cancelled.";
 	}
 }

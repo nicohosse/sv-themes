@@ -1,4 +1,4 @@
-export * from "./actions/theme-selector.svelte.ts";
+export * from "./actions/theme-selector.svelte.js";
 
 export {
 	loadTheme,
@@ -7,9 +7,9 @@ export {
 	type ThemeAttribute,
 	type ThemesRecord,
 	unloadTheme,
-} from "./core/theme.ts";
+} from "./core/theme.js";
 
-export * from "./core/theme-manager.errors.ts";
+export * from "./core/theme-manager.errors.js";
 
 export {
 	createThemeManager,
@@ -25,4 +25,4 @@ export {
 	type SystemTheme,
 	type ThemeManager,
 	type ThemesOf,
-} from "./core/theme-manager.svelte.ts";
+} from "./core/theme-manager.svelte.js";

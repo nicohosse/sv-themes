@@ -1,10 +1,10 @@
-import type { ThemeAttribute, ThemesRecord } from "./theme.ts";
+import type { ThemeAttribute, ThemesRecord } from "./theme.js";
 import {
 	STORAGE_METHOD_PRIORITY,
 	type StorageMethod,
 	type StorageOptions,
 	type SystemTheme,
-} from "./theme-manager.svelte.ts";
+} from "./theme-manager.svelte.js";
 
 interface ThemeScriptArguments<Themes extends ThemesRecord> {
 	themes: Themes;
@@ -75,7 +75,7 @@ function themeScript(
 			if (!storedTheme) continue;
 
 			persistedThemes.set(storageMethod, storedTheme);
-			dominantTheme = storedTheme ?? dominantTheme;
+			dominantTheme ??= storedTheme;
 		}
 
 		return dominantTheme && (dominantTheme === "system" || themeIds.includes(dominantTheme))
@@ -159,8 +159,10 @@ function themeScript(
 	if (document.currentScript) document.currentScript.remove();
 }
 
+const NAME_MINIFICATION_REGEX = /^\s*__name\([^)]*\);?\s*(?:\/\/.*)?$/gm;
+
 export function getThemeScript<const Themes extends ThemesRecord>(config: Readonly<ThemeScriptArguments<Themes>>) {
-	const fn = themeScript.toString().replace(/\s*__name\s*\([^)]*\)\s*;?\s*/g, "");
+	const fn = themeScript.toString().replace(NAME_MINIFICATION_REGEX, "");
 
 	const args = [
 		config.themes,
@@ -177,8 +179,18 @@ export function getThemeScript<const Themes extends ThemesRecord>(config: Readon
 		config.isThemeForcedAttribute,
 		config.isSystemThemeAttribute,
 	]
-		.map((argument) => (argument === undefined ? "undefined" : JSON.stringify(argument)))
+		.map((argument) => (argument === undefined ? "undefined" : safeSerializeArgument(argument)))
 		.join(",");
 
 	return `(${fn})(${args})`;
+}
+
+function safeSerializeArgument(argument: unknown): string {
+	const json = JSON.stringify(argument);
+
+	return json
+		.replace(/<\/script/gi, "<\\/script")
+		.replace(/<\s*\/\s*script/gi, "<\\/script")
+		.replace(/<!--/g, "<\\!--")
+		.replace(/<\/\w+/g, (m) => m.replace("<", "<\\"));
 }

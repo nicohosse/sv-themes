@@ -1,5 +1,5 @@
-import type { ThemesRecord } from "./theme.ts";
-import type { ThemeManager } from "./theme-manager.svelte.ts";
+import type { ThemesRecord } from "./theme.js";
+import type { ThemeManager } from "./theme-manager.svelte.js";
 
 export function getSSRAttributes<Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
 	const resolvedTheme = themeManager.themes[themeManager.resolvedTheme];

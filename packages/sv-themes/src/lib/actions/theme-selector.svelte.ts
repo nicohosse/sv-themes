@@ -1,6 +1,6 @@
 import type { ActionReturn } from "svelte/action";
-import { preloadTheme, type ThemesRecord, unloadTheme } from "../core/theme.ts";
-import type { ThemeManager } from "../core/theme-manager.svelte.ts";
+import { preloadTheme, type ThemesRecord, unloadTheme } from "../core/theme.js";
+import type { ThemeManager } from "../core/theme-manager.svelte.js";
 
 interface ThemePreloadingOptions {
 	usePreloading?: boolean;
