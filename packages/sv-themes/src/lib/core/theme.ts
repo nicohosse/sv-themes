@@ -15,11 +15,11 @@ export interface Theme {
 
 export type ThemesRecord<Keys extends string = string> = Record<Keys, Readonly<Theme>>;
 
-export function hasCss(theme: Theme): theme is Theme & { css: { src: string } } {
+export function isThemeWithCss(theme: Theme): theme is Theme & { css: { src: string } } {
 	return !!theme.css;
 }
 
-export function getCssLinks(theme: Theme, preload = true) {
+export function getThemeCssLinks(theme: Theme, preload = true) {
 	const src = theme.css?.src && encodeURI(theme.css?.src);
 
 	if (!src) return;
@@ -31,19 +31,19 @@ export function getCssLinks(theme: Theme, preload = true) {
 }
 
 export function unloadTheme(theme: Theme) {
-	if (!BROWSER || !hasCss(theme)) return;
+	if (!BROWSER || !isThemeWithCss(theme)) return;
 
 	document
 		.querySelectorAll<HTMLLinkElement>('link[rel="preload"][as="style"],link[rel="stylesheet"]')
 		.values()
-		.filter((linkElement) => theme.css.src === (linkElement.getAttribute("href") ?? ""))
+		.filter((linkElement) => theme.css.src === linkElement.getAttribute("href"))
 		.forEach((linkElement) => {
 			linkElement.remove();
 		});
 }
 
 export function preloadTheme(theme: Theme) {
-	if (!BROWSER || !hasCss(theme)) return;
+	if (!BROWSER || !isThemeWithCss(theme)) return;
 
 	const source = encodeURI(theme.css.src);
 
@@ -60,7 +60,7 @@ export function preloadTheme(theme: Theme) {
 }
 
 export function loadTheme(theme: Theme): Promise<void> {
-	if (!BROWSER || !hasCss(theme)) return Promise.resolve();
+	if (!BROWSER || !isThemeWithCss(theme)) return Promise.resolve();
 
 	const source = encodeURI(theme.css.src);
 

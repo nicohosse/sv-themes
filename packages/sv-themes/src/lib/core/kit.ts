@@ -1,12 +1,19 @@
 import type { Handle } from "@sveltejs/kit";
+import { flushSync } from "svelte";
 import { getThemeScript } from "./script.js";
-import { getSSRAttributes } from "./server.js";
-import { getCssLinks, hasCss, type ThemesRecord } from "./theme.js";
+import {
+	CLASS_ATTRIBUTE_REGEX,
+	FORCED_THEME_META_REGEX,
+	getSSRAttributes,
+	getThemesToLoad,
+	HEAD_CLOSE_REGEX,
+	HTML_TAG_REGEX,
+	resolveForcedTheme,
+	STYLE_ATTRIBUTE_REGEX,
+} from "./server.js";
+import { getThemeCssLinks, type ThemesRecord } from "./theme.js";
 import { getErrorMessage } from "./theme-manager.errors.js";
 import { getPersistedTheme, type ThemeManager } from "./theme-manager.svelte.js";
-
-const HTML_TAG_REGEX = /<html([^>]*)>/;
-const HEAD_CLOSE_REGEX = /<\/head>/;
 
 export function createThemeHandle<Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>): Handle {
 	return async ({ event, resolve }) => {
@@ -17,58 +24,62 @@ export function createThemeHandle<Themes extends ThemesRecord>(themeManager: The
 
 		if (persistedTheme) themeManager.setTheme(persistedTheme, false);
 
-		// TODO: Figure out better scoping solution. Placeholder.
-		const forcedTheme: string | undefined = undefined;
+		const cspNonce = event.locals.cspNonce;
 
-		const forcedThemeResult = themeManager.setForcedTheme(forcedTheme);
-		if (forcedThemeResult.isErr()) throw new Error(getErrorMessage(forcedThemeResult.error));
+		let cachedData: {
+			themesToLoad: ReturnType<typeof getThemesToLoad>;
+			ssrAttributes: ReturnType<typeof getSSRAttributes>;
+			scriptTag: string;
+		} | null = null;
 
-		const resolvedTheme = themeManager.themes[themeManager.resolvedTheme];
+		return await resolve(event, {
+			transformPageChunk: async ({ html }) => {
+				if (!cachedData) {
+					const forcedTheme = resolveForcedTheme(html) as keyof Themes | "system" | undefined;
+					const forcedThemeResult = await themeManager.setForcedTheme(forcedTheme);
+					if (forcedThemeResult.isErr()) throw new Error(getErrorMessage(forcedThemeResult.error));
 
-		const eagerlyLoadedThemes = Object.values(themeManager.themes)
-			.filter(hasCss)
-			.filter((theme) => !theme.css.lazyLoading);
+					flushSync();
 
-		const themesToLoad = [...eagerlyLoadedThemes];
+					const themesToLoad = getThemesToLoad(themeManager);
 
-		if (hasCss(resolvedTheme)) themesToLoad.push(resolvedTheme);
+					const ssrAttributes = getSSRAttributes(themeManager);
 
-		const response = await resolve(event, {
-			transformPageChunk: ({ html }) => {
-				let newHtml = html;
+					const scriptContent = getThemeScript({ ...themeManager });
+					const scriptTag = `<script${cspNonce ? ` nonce="${cspNonce}"` : ""}>${scriptContent}</script>`;
 
-				const ssrAttributes = getSSRAttributes(themeManager);
+					cachedData = {
+						themesToLoad,
+						ssrAttributes,
+						scriptTag,
+					};
+				}
 
-				newHtml = newHtml.replace(HTML_TAG_REGEX, (_, existingAttributes) => {
-					let updatedAttributes = existingAttributes;
+				return html
+					.replace(HTML_TAG_REGEX, (_, existingAttributes) => {
+						if (!cachedData) return existingAttributes;
 
-					for (const [key, value] of Object.entries(ssrAttributes)) {
-						if (key === "class") {
-							if (updatedAttributes.includes("class="))
-								updatedAttributes = updatedAttributes.replace(/class=["']([^"']*)["']/, `class="$1 ${value}"`);
-							else updatedAttributes += ` class="${value}"`;
-						} else if (key === "style") {
-							if (updatedAttributes.includes("style="))
-								updatedAttributes = updatedAttributes.replace(/style=["']([^"']*)["']/, `style="$1 ${value}"`);
-							else updatedAttributes += ` style="${value}"`;
-						} else updatedAttributes += ` ${key}="${value}"`;
-					}
+						let updatedAttributes = existingAttributes;
 
-					return `<html${updatedAttributes}>`;
-				});
+						for (const [key, value] of Object.entries(cachedData.ssrAttributes))
+							if (key === "class")
+								if (updatedAttributes.includes("class="))
+									updatedAttributes = updatedAttributes.replace(CLASS_ATTRIBUTE_REGEX, `class="$1 ${value}"`);
+								else updatedAttributes += ` class="${value}"`;
+							else if (key === "style")
+								if (updatedAttributes.includes("style="))
+									updatedAttributes = updatedAttributes.replace(STYLE_ATTRIBUTE_REGEX, `style="$1 ${value}"`);
+								else updatedAttributes += ` style="${value}"`;
+							else updatedAttributes += ` ${key}="${value}"`;
 
-				const cspNonce = event.locals.cspNonce;
-
-				const scriptContent = getThemeScript({ ...themeManager });
-				const scriptTag = `<script${cspNonce ? `nonce=${cspNonce}` : ""}>${scriptContent}</script>`;
-
-				return newHtml.replace(
-					HEAD_CLOSE_REGEX,
-					`${themesToLoad.map((theme) => getCssLinks(theme)?.join("\n")).join("\n")}\n${scriptTag}</head>`,
-				);
+						return `<html${updatedAttributes}>`;
+					})
+					.replace(
+						HEAD_CLOSE_REGEX,
+						`${cachedData.themesToLoad.map((theme) => getThemeCssLinks(theme)?.join("\n")).join("\n")}\n${cachedData.scriptTag}</head>`,
+					)
+					.replaceAll(FORCED_THEME_META_REGEX, "");
 			},
 		});
-
-		return response;
 	};
 }

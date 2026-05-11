@@ -6,9 +6,11 @@ export type ThemeManagerError =
 	| { type: "ThemeNotFound"; theme: string }
 	| { type: "ThemeInvalidCssSrc"; src: string }
 	| { type: "ThemeInvalidId"; id: string }
+	| { type: "ThemeUnavailable"; theme: string }
 	| { type: "SystemThemeUnassigned"; systemTheme: SystemTheme }
 	| { type: "SystemThemesDisabled" }
 	| { type: "SystemThemeInvalidType"; systemTheme: SystemTheme }
+	| { type: "ForcedThemeLocked" }
 	| { type: "Cancelled" };
 
 export const ThemeManagerError = {
@@ -30,6 +32,10 @@ export const ThemeManagerError = {
 		return { type: "ThemeInvalidId", id };
 	},
 
+	themeUnavailable(theme: string): ThemeManagerError {
+		return { type: "ThemeUnavailable", theme };
+	},
+
 	systemThemeUnassigned(systemTheme: SystemTheme): ThemeManagerError {
 		return { type: "SystemThemeUnassigned", systemTheme };
 	},
@@ -39,6 +45,8 @@ export const ThemeManagerError = {
 	systemThemeInvalidType(systemTheme: SystemTheme): ThemeManagerError {
 		return { type: "SystemThemeInvalidType", systemTheme };
 	},
+
+	forcedThemeLocked: { type: "ForcedThemeLocked" } as const satisfies ThemeManagerError,
 
 	cancelled: { type: "Cancelled" } as const satisfies ThemeManagerError,
 };
@@ -60,6 +68,9 @@ export function getErrorMessage(error: ThemeManagerError): string {
 		case "ThemeInvalidId":
 			return `Theme id '${error.id}' is invalid. The id 'system' is reserved.`;
 
+		case "ThemeUnavailable":
+			return `Theme '${error.theme}' is unavailable.`;
+
 		case "SystemThemeUnassigned":
 			return `System theme '${error.systemTheme}' has no valid assigned theme.`;
 
@@ -68,6 +79,9 @@ export function getErrorMessage(error: ThemeManagerError): string {
 
 		case "SystemThemeInvalidType":
 			return `System theme '${error.systemTheme}' needs to be assigned to a theme with type '${error.systemTheme}'.`;
+
+		case "ForcedThemeLocked":
+			return "Forced theme is locked.";
 
 		case "Cancelled":
 			return "The operation has been cancelled.";

@@ -1,4 +1,5 @@
 import type { ActionReturn } from "svelte/action";
+import { getErrorMessage } from "$lib/core/theme-manager.errors.js";
 import { preloadTheme, type ThemesRecord, unloadTheme } from "../core/theme.js";
 import type { ThemeManager } from "../core/theme-manager.svelte.js";
 
@@ -28,7 +29,7 @@ export function themeSelector<Themes extends ThemesRecord>(
 		preloading = { ...DEFAULT_THEME_PRELOADING_OPTIONS, ...params.preloading },
 	} = params;
 
-	let hoverTimeout: ReturnType<typeof setTimeout> | undefined;
+	let hoverTimeout: NodeJS.Timeout | undefined;
 	let activeHoverId: string | undefined;
 
 	let resolvedThemeId =
@@ -36,7 +37,7 @@ export function themeSelector<Themes extends ThemesRecord>(
 			? themeManager.resolvedSystemThemes[themeManager.systemTheme]
 			: themeId;
 
-	let resolvedTheme = resolvedThemeId !== "system" ? themeManager.themes[resolvedThemeId] : undefined;
+	let resolvedTheme = themeManager.themes[resolvedThemeId];
 
 	const clearHover = () => {
 		if (hoverTimeout) {
@@ -47,27 +48,29 @@ export function themeSelector<Themes extends ThemesRecord>(
 		activeHoverId = undefined;
 	};
 
-	const onClick = () => {
-		themeManager.setTheme(themeId);
+	const onClick = async () => {
+		const result = await themeManager.setTheme(themeId);
+		if (result.isErr()) console.error(getErrorMessage(result.error));
 	};
 
 	const onPointerEnter = () => {
-		if (!preloading.usePreloading || themeManager.resolvedTheme === resolvedThemeId || !resolvedTheme) return;
+		if (!preloading.usePreloading || themeManager.resolvedTheme === resolvedThemeId || themeManager.forcedTheme) return;
 
-		activeHoverId = resolvedThemeId as string;
+		activeHoverId = resolvedThemeId.toString();
 
 		if (hoverTimeout) clearTimeout(hoverTimeout);
 
 		hoverTimeout = setTimeout(() => {
-			if (activeHoverId !== resolvedThemeId || !resolvedTheme) return;
+			if (activeHoverId !== resolvedThemeId) return;
 
 			preloadTheme(resolvedTheme);
+
 			hoverTimeout = undefined;
 		}, preloading.hoverDebounceDelay);
 	};
 
 	const onPointerLeave = () => {
-		if (!preloading.usePreloading || themeManager.resolvedTheme === resolvedThemeId || !resolvedTheme) return;
+		if (!preloading.usePreloading || themeManager.resolvedTheme === resolvedThemeId || themeManager.forcedTheme) return;
 
 		if (activeHoverId === resolvedThemeId) {
 			clearHover();
@@ -81,7 +84,7 @@ export function themeSelector<Themes extends ThemesRecord>(
 
 	$effect(() => {
 		node.ariaPressed = (
-			(themeId === "system" && themeManager.useSystemTheme) ||
+			(themeId === "system" && themeManager.resolvedUseSystemTheme) ||
 			themeManager.selectedTheme === resolvedThemeId
 		).toString();
 	});
@@ -101,7 +104,7 @@ export function themeSelector<Themes extends ThemesRecord>(
 					? themeManager.resolvedSystemThemes[themeManager.systemTheme]
 					: themeId;
 
-			resolvedTheme = resolvedThemeId !== "system" ? themeManager.themes[resolvedThemeId] : undefined;
+			resolvedTheme = themeManager.themes[resolvedThemeId];
 
 			clearHover();
 		},

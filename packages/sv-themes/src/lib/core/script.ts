@@ -1,4 +1,4 @@
-import type { ThemeAttribute, ThemesRecord } from "./theme.js";
+import type { Theme, ThemeAttribute, ThemesRecord } from "./theme.js";
 import {
 	STORAGE_METHOD_PRIORITY,
 	type StorageMethod,
@@ -36,12 +36,12 @@ function themeScript(
 	selectedTheme: string,
 	attributes: ThemeAttribute[],
 	resolvedSystemThemes: Record<string, string>,
+	useSystemTheme: boolean,
 	storageMethodPriorityArray: { storageMethod: StorageMethod; priority: number }[],
 	storage?: StorageOptions,
 	forcedTheme?: string,
 	useColorScheme?: boolean,
 	useThemeColor?: boolean,
-	useSystemTheme?: boolean,
 	isThemeForcedAttribute?: string,
 	isSystemThemeAttribute?: string,
 ) {
@@ -88,6 +88,21 @@ function themeScript(
 		return isDark ? resolvedSystemThemes.dark : resolvedSystemThemes.light;
 	};
 
+	const loadTheme = (theme: Theme) => {
+		if (!theme.css?.src) return;
+
+		const source = encodeURI(theme.css.src);
+
+		let stylesheetLinkElement = document.querySelector<HTMLLinkElement>(`link[rel="stylesheet"][href="${source}"]`);
+		if (stylesheetLinkElement) return;
+
+		stylesheetLinkElement = document.createElement("link");
+		stylesheetLinkElement.rel = "stylesheet";
+		stylesheetLinkElement.href = source;
+
+		document.head.appendChild(stylesheetLinkElement);
+	};
+
 	const persistedTheme = getPersistedTheme();
 	const resolvedTheme =
 		themes[
@@ -95,6 +110,8 @@ function themeScript(
 				? resolveSystemTheme()
 				: (forcedTheme ?? persistedTheme ?? selectedTheme)
 		];
+
+	loadTheme(resolvedTheme);
 
 	const allThemeClasses = themeIds.map((id) => themes[id].className ?? id);
 
@@ -121,8 +138,9 @@ function themeScript(
 		const firstThemeId = themeIds.at(0);
 
 		if (firstThemeId) {
-			const hasLightTheme = !!Object.values(themes).find((theme) => theme.type === "light");
-			const hasDarkTheme = !!Object.values(themes).find((theme) => theme.type === "dark");
+			const themeValues = Object.values(themes);
+			const hasLightTheme = !!themeValues.find((theme) => theme.type === "light");
+			const hasDarkTheme = !!themeValues.find((theme) => theme.type === "dark");
 
 			const firstThemeType = themes[firstThemeId].type;
 
@@ -170,12 +188,12 @@ export function getThemeScript<const Themes extends ThemesRecord>(config: Readon
 		config.selectedTheme,
 		config.attributes,
 		config.resolvedSystemThemes,
+		config.useSystemTheme,
 		Array.from(STORAGE_METHOD_PRIORITY.entries()),
 		config.storage,
 		config.forcedTheme,
 		config.useColorScheme,
 		config.useThemeColor,
-		config.useSystemTheme,
 		config.isThemeForcedAttribute,
 		config.isSystemThemeAttribute,
 	]
@@ -192,5 +210,5 @@ function safeSerializeArgument(argument: unknown): string {
 		.replace(/<\/script/gi, "<\\/script")
 		.replace(/<\s*\/\s*script/gi, "<\\/script")
 		.replace(/<!--/g, "<\\!--")
-		.replace(/<\/\w+/g, (m) => m.replace("<", "<\\"));
+		.replace(/<\/\w+/g, (match) => match.replace("<", "<\\"));
 }
