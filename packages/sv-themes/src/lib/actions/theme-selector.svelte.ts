@@ -30,7 +30,7 @@ export function themeSelector<Themes extends ThemesRecord>(
 	} = params;
 
 	let hoverTimeout: NodeJS.Timeout | undefined;
-	let activeHoverId: string | undefined;
+	let activeToken: symbol | undefined;
 
 	let resolvedThemeId =
 		themeId === "system" && themeManager.systemTheme
@@ -40,12 +40,12 @@ export function themeSelector<Themes extends ThemesRecord>(
 	let resolvedTheme = themeManager.themes[resolvedThemeId];
 
 	const clearHover = () => {
+		activeToken = undefined;
+
 		if (hoverTimeout) {
 			clearTimeout(hoverTimeout);
 			hoverTimeout = undefined;
 		}
-
-		activeHoverId = undefined;
 	};
 
 	const onClick = async () => {
@@ -56,14 +56,17 @@ export function themeSelector<Themes extends ThemesRecord>(
 	const onPointerEnter = () => {
 		if (!preloading.usePreloading || themeManager.resolvedTheme === resolvedThemeId || themeManager.forcedTheme) return;
 
-		activeHoverId = resolvedThemeId.toString();
+		const token = Symbol("hover-token");
+		activeToken = token;
 
 		if (hoverTimeout) clearTimeout(hoverTimeout);
 
-		hoverTimeout = setTimeout(() => {
-			if (activeHoverId !== resolvedThemeId) return;
+		hoverTimeout = setTimeout(async () => {
+			if (activeToken !== token) return;
 
-			preloadTheme(resolvedTheme);
+			await preloadTheme(resolvedTheme).catch(() => {});
+
+			if (activeToken !== token) return;
 
 			hoverTimeout = undefined;
 		}, preloading.hoverDebounceDelay);
@@ -72,10 +75,9 @@ export function themeSelector<Themes extends ThemesRecord>(
 	const onPointerLeave = () => {
 		if (!preloading.usePreloading || themeManager.resolvedTheme === resolvedThemeId || themeManager.forcedTheme) return;
 
-		if (activeHoverId === resolvedThemeId) {
-			clearHover();
-			unloadTheme(resolvedTheme);
-		}
+		clearHover();
+
+		unloadTheme(resolvedTheme);
 	};
 
 	node.addEventListener("click", onClick);
@@ -111,7 +113,6 @@ export function themeSelector<Themes extends ThemesRecord>(
 
 		destroy() {
 			clearHover();
-
 			node.removeEventListener("click", onClick);
 			node.removeEventListener("pointerenter", onPointerEnter);
 			node.removeEventListener("pointerleave", onPointerLeave);

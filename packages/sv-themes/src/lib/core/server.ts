@@ -1,4 +1,4 @@
-import { isThemeWithCss, type ThemesRecord } from "./theme.js";
+import { isThemeWithCss, type Theme, type ThemesRecord } from "./theme.js";
 import type { ThemeManager } from "./theme-manager.svelte.js";
 
 export const HTML_TAG_REGEX = /<html([^>]*)>/;
@@ -73,15 +73,26 @@ export function getThemesToLoad<const Themes extends ThemesRecord>(themeManager:
 
 	const eagerlyLoadedThemes = Object.values(themeManager.themes)
 		.filter(isThemeWithCss)
-		.filter((theme) => !theme.css.lazyLoading);
+		.filter((theme) => !theme.css.lazyLoading)
+		.map((theme) => ({
+			theme,
+		}));
 
-	const themesToLoad = [...eagerlyLoadedThemes];
+	const themesToLoad: { theme: Theme; media?: string }[] = [...eagerlyLoadedThemes];
 
 	const forcedTheme =
 		themeManager.forcedTheme && themeManager.forcedTheme !== "system" && themeManager.themes[themeManager.forcedTheme];
 
-	if (forcedTheme && isThemeWithCss(forcedTheme)) themesToLoad.push(forcedTheme);
-	else if (!themeManager.resolvedUseSystemTheme && isThemeWithCss(resolvedTheme)) themesToLoad.push(resolvedTheme);
+	if (forcedTheme && isThemeWithCss(forcedTheme)) themesToLoad.push({ theme: forcedTheme });
+	else if (!themeManager.resolvedUseSystemTheme && isThemeWithCss(resolvedTheme))
+		themesToLoad.push({ theme: resolvedTheme });
+	else if (themeManager.resolvedUseSystemTheme)
+		themesToLoad.push(
+			...Object.values(themeManager.resolvedSystemThemes)
+				.map((themeId) => themeManager.themes[themeId] as Theme)
+				.filter(isThemeWithCss)
+				.map((theme) => ({ theme, media: `(prefers-color-scheme: ${theme.type})` })),
+		);
 
 	return themesToLoad;
 }

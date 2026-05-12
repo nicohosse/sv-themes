@@ -76,7 +76,7 @@ export function createThemeHandle<Themes extends ThemesRecord>(themeManager: The
 					})
 					.replace(
 						HEAD_CLOSE_REGEX,
-						`${cachedData.themesToLoad.map((theme) => getThemeCssLinks(theme)?.join("\n")).join("\n")}\n${cachedData.scriptTag}</head>`,
+						`${cachedData.themesToLoad.map(({ theme, media }) => getThemeCssLinks(theme, true, media)?.join("\n")).join("\n")}\n${cachedData.scriptTag}</head>`,
 					)
 					.replaceAll(FORCED_THEME_META_REGEX, "");
 			},

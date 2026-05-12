@@ -93,14 +93,38 @@ function themeScript(
 
 		const source = encodeURI(theme.css.src);
 
-		let stylesheetLinkElement = document.querySelector<HTMLLinkElement>(`link[rel="stylesheet"][href="${source}"]`);
-		if (stylesheetLinkElement) return;
+		let preloadLinkElement = document.querySelector<HTMLLinkElement>(
+			`link[rel="preload"][as="style"][href="${source}"]`,
+		);
 
-		stylesheetLinkElement = document.createElement("link");
-		stylesheetLinkElement.rel = "stylesheet";
-		stylesheetLinkElement.href = source;
+		const isNew = !preloadLinkElement;
 
-		document.head.appendChild(stylesheetLinkElement);
+		if (!preloadLinkElement) {
+			preloadLinkElement = document.createElement("link");
+			preloadLinkElement.rel = "preload";
+			preloadLinkElement.as = "style";
+			preloadLinkElement.href = source;
+		}
+
+		const attachCss = () => {
+			let stylesheetLinkElement = document.querySelector<HTMLLinkElement>(`link[rel="stylesheet"][href="${source}"]`);
+			const isNew = !stylesheetLinkElement;
+
+			if (!stylesheetLinkElement) {
+				stylesheetLinkElement = document.createElement("link");
+				stylesheetLinkElement.rel = "stylesheet";
+				stylesheetLinkElement.href = source;
+			}
+			stylesheetLinkElement.onload = () => preloadLinkElement?.remove();
+			stylesheetLinkElement.onerror = () => preloadLinkElement?.remove();
+
+			if (isNew) document.head.appendChild(stylesheetLinkElement);
+		};
+
+		preloadLinkElement.onload = attachCss;
+
+		if (preloadLinkElement.sheet) attachCss();
+		if (isNew) document.head.appendChild(preloadLinkElement);
 	};
 
 	const persistedTheme = getPersistedTheme();

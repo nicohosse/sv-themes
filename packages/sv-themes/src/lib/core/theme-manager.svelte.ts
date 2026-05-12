@@ -14,7 +14,15 @@ import type {
 	ThemeEvents,
 	ThemeLoadErrorEvent,
 } from "./theme.events.js";
-import { isThemeWithCss, loadTheme, type Theme, type ThemeAttribute, type ThemesRecord, unloadTheme } from "./theme.js";
+import {
+	isThemeWithCss,
+	loadTheme,
+	preloadTheme,
+	type Theme,
+	type ThemeAttribute,
+	type ThemesRecord,
+	unloadTheme,
+} from "./theme.js";
 import { getErrorMessage, ThemeManagerError } from "./theme-manager.errors.js";
 
 export function createThemes<const Themes extends readonly Theme[]>(
@@ -264,7 +272,7 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 	const resolvedSystemThemes = resolveSystemThemes(themes, systemThemes);
 
 	const resolvedUseSystemTheme = $derived(
-		(!state.forcedTheme && state.useSystemTheme) || state.forcedTheme === "system",
+		enableSystemThemes && ((!state.forcedTheme && state.useSystemTheme) || state.forcedTheme === "system"),
 	);
 
 	const resolvedTheme = $derived.by(() => {
@@ -714,6 +722,7 @@ async function loadThemeAndUpdateDom<const Themes extends ThemesRecord>(themeMan
 	const resolvedTheme = themeManager.themes[themeManager.resolvedTheme];
 
 	try {
+		await preloadTheme(resolvedTheme);
 		await loadTheme(resolvedTheme);
 	} catch (error) {
 		console.error(`Failed to load theme '${resolvedTheme.id}'.`);
