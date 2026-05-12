@@ -18,11 +18,6 @@ export interface SystemThemeChangeEvent<Themes extends ThemesRecord> {
 	readonly resolvedSystemTheme: keyof Themes;
 }
 
-export interface ThemeLoadErrorEvent<Themes extends ThemesRecord> {
-	readonly theme: keyof Themes;
-	readonly error: Error;
-}
-
 export interface ForcedThemeEvent<Themes extends ThemesRecord> {
 	readonly theme: keyof Themes | "system";
 }
@@ -33,7 +28,6 @@ export type ThemeEvents<Themes extends ThemesRecord> = {
 	beforeChange: AfterThemeChangeEvent<Themes>;
 	afterChange: ThemeChangeEvent<Themes>;
 	systemChange: SystemThemeChangeEvent<Themes>;
-	loadError: ThemeLoadErrorEvent<Themes>;
 	forced: ForcedThemeEvent<Themes>;
 	unforced: UnforcedThemeEvent;
 };

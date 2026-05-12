@@ -12,17 +12,8 @@ import type {
 	Listener,
 	SystemThemeChangeEvent,
 	ThemeEvents,
-	ThemeLoadErrorEvent,
 } from "./theme.events.js";
-import {
-	isThemeWithCss,
-	loadTheme,
-	preloadTheme,
-	type Theme,
-	type ThemeAttribute,
-	type ThemesRecord,
-	unloadTheme,
-} from "./theme.js";
+import type { Theme, ThemeAttribute, ThemesRecord } from "./theme.js";
 import { getErrorMessage, ThemeManagerError } from "./theme-manager.errors.js";
 
 export function createThemes<const Themes extends readonly Theme[]>(
@@ -103,8 +94,6 @@ export interface ThemeManager<Themes extends ThemesRecord = ThemesRecord> {
 	readonly resolvedTheme: keyof Themes;
 	readonly selectedTheme: keyof Themes;
 	readonly forcedTheme?: keyof Themes | "system";
-	readonly previouslyAppliedTheme?: keyof Themes;
-	readonly unavailableThemes: Partial<Record<keyof Themes, number>>;
 	isForcedThemeLocked?: boolean;
 	readonly setForcedTheme: (theme?: keyof Themes | "system", lock?: boolean) => ResultAsync<void, ThemeManagerError>;
 	readonly setTheme: (theme: keyof Themes | "system", shouldPersist?: boolean) => ResultAsync<void, ThemeManagerError>;
@@ -130,7 +119,6 @@ export interface ThemeManager<Themes extends ThemesRecord = ThemesRecord> {
 		setUseSystemTheme: (useSystemTheme: boolean) => Result<void, ThemeManagerError>;
 
 		setSelectedTheme: (theme: keyof Themes) => Result<void, ThemeManagerError>;
-		setPreviouslyAppliedTheme: (theme: keyof Themes) => void;
 
 		hasListeners: <Event extends keyof ThemeEvents<Themes>>(event: Event) => boolean;
 		emit: <Event extends keyof ThemeEvents<Themes>>(event: Event, data: ThemeEvents<Themes>[Event]) => Promise<void>;
@@ -139,21 +127,12 @@ export interface ThemeManager<Themes extends ThemesRecord = ThemesRecord> {
 
 export type ThemesOf<M> = M extends ThemeManager<infer T> ? keyof T : never;
 
-const UNAVAILABLE_THEME_RETRY_THRESHOLD_MS = 5 * 60 * 1000;
-
 function validateRequestedTheme<const Themes extends ThemesRecord>(
 	themeManager: ThemeManager<Themes>,
 	requestedTheme: keyof Themes,
 ): Result<void, ThemeManagerError> {
 	if (!themeManager.themeIds.includes(requestedTheme))
 		return err(ThemeManagerError.themeNotFound(requestedTheme.toString()));
-
-	const unavailableSince = themeManager.unavailableThemes[requestedTheme];
-
-	if (unavailableSince)
-		if (Date.now() - unavailableSince > UNAVAILABLE_THEME_RETRY_THRESHOLD_MS)
-			delete themeManager.unavailableThemes[requestedTheme];
-		else return err(ThemeManagerError.themeUnavailable(requestedTheme.toString()));
 
 	return ok();
 }
@@ -174,7 +153,6 @@ function validateSystemTheme<const Themes extends ThemesRecord>(
 }
 
 function validateTheme(theme: Theme): Result<void, ThemeManagerError> {
-	if (theme.css && !theme.css.src.trim()) return err(ThemeManagerError.themeInvalidCssSrc(theme.css.src));
 	if (theme.id === "system") return err(ThemeManagerError.themeInvalidId(theme.id));
 
 	return ok();
@@ -240,10 +218,10 @@ type CreateThemeManagerInput<Themes extends ThemesRecord> = Omit<
 export function createThemeManager<const Themes extends ThemesRecord>({
 	themes,
 
-	enableSystemThemes = true,
+	enableSystemThemes,
 	systemTheme,
 	systemThemes,
-	useSystemTheme = true,
+	useSystemTheme,
 
 	initialTheme,
 	forcedTheme,
@@ -261,8 +239,6 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 	const state = $state({
 		useSystemTheme,
 		selectedTheme: initialTheme,
-		previouslyAppliedTheme: initialTheme,
-		unavailableThemes: {} as Partial<Record<keyof Themes, number>>,
 		systemTheme,
 		isForcedThemeLocked: false,
 		forcedTheme,
@@ -410,10 +386,6 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 		await themeManager[INTERNAL].emit("systemChange", changeEvent);
 	};
 
-	const setPreviouslyAppliedTheme = (theme: keyof Themes) => {
-		state.previouslyAppliedTheme = theme;
-	};
-
 	const hasLightTheme = !!Object.values(themes).find((theme) => theme.type === "light");
 	const hasDarkTheme = !!Object.values(themes).find((theme) => theme.type === "dark");
 	const hasLightSystemTheme = themeIds.includes(resolvedSystemThemes.light);
@@ -491,14 +463,6 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 			return state.forcedTheme;
 		},
 
-		get previouslyAppliedTheme() {
-			return state.previouslyAppliedTheme;
-		},
-
-		get unavailableThemes() {
-			return state.unavailableThemes;
-		},
-
 		setForcedTheme,
 		setTheme,
 
@@ -520,7 +484,6 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 			setUseSystemTheme,
 
 			setSelectedTheme,
-			setPreviouslyAppliedTheme,
 
 			hasListeners,
 			emit,
@@ -589,17 +552,6 @@ function updateMetaTags<const Themes extends ThemesRecord>(themeManager: ThemeMa
 	themeColorMetaElement.content = resolvedColor;
 }
 
-function unloadStaleThemes<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
-	if (!BROWSER) return;
-
-	Object.values(themeManager.themes)
-		.filter(isThemeWithCss)
-		.filter((theme) => theme.id !== themeManager.resolvedTheme && theme.css.lazyLoading)
-		.forEach((theme) => {
-			unloadTheme(theme);
-		});
-}
-
 function cleanUpThemeClasses<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
 	if (!BROWSER) return;
 
@@ -656,98 +608,9 @@ function registerMediaListener<const Themes extends ThemesRecord>(themeManager: 
 	};
 }
 
-function removeThemeFromDom<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
-	if (!BROWSER) return;
-
-	const classesToRemove = themeManager.themeIds
-		.map((themeId) => themeManager.themes[themeId].className)
-		.filter((className) => className !== undefined);
-
-	for (const className of classesToRemove) document.documentElement.classList.remove(className);
-
-	const attributes = themeManager.attributes.filter((attribute) => attribute !== "class");
-	for (const attribute of attributes) document.documentElement.removeAttribute(attribute);
-
-	const colorSchemeMetaElement = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]');
-	if (colorSchemeMetaElement) colorSchemeMetaElement.remove();
-
-	const themeColorMetaElement = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-	if (themeColorMetaElement) themeColorMetaElement.remove();
-
-	document.documentElement.style.removeProperty("color-scheme");
-}
-
-function revertOrRemoveThemeFromDom<const Themes extends ThemesRecord>(
-	themeManager: ThemeManager<Themes>,
-	useInitialThemeAsFallback?: boolean,
-	shouldLog = false,
-) {
-	const resolvedTheme = themeManager.resolvedTheme.toString();
-	const previousTheme = themeManager.previouslyAppliedTheme;
-
-	const canUsePreviousTheme =
-		previousTheme !== undefined &&
-		resolvedTheme !== previousTheme &&
-		!(previousTheme in themeManager.unavailableThemes);
-
-	const canUseInitialTheme =
-		useInitialThemeAsFallback && !(themeManager.initialTheme in themeManager.unavailableThemes);
-
-	const fallbackTheme = canUsePreviousTheme
-		? previousTheme
-		: canUseInitialTheme
-			? themeManager.initialTheme
-			: undefined;
-
-	if (fallbackTheme) {
-		if (themeManager.forcedTheme === resolvedTheme) {
-			if (shouldLog) console.info(`Removing forced theme.`);
-			themeManager.setForcedTheme(undefined);
-		}
-
-		if (shouldLog) console.info(`Reverting to previous theme: ${fallbackTheme.toString()}`);
-		themeManager.setTheme(fallbackTheme);
-
-		return;
-	}
-
-	if (!BROWSER) return;
-
-	if (shouldLog) console.info("Removing theme from DOM.");
-
-	removeThemeFromDom(themeManager);
-}
-
-async function loadThemeAndUpdateDom<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
-	const resolvedTheme = themeManager.themes[themeManager.resolvedTheme];
-
-	try {
-		await preloadTheme(resolvedTheme);
-		await loadTheme(resolvedTheme);
-	} catch (error) {
-		console.error(`Failed to load theme '${resolvedTheme.id}'.`);
-
-		themeManager.unavailableThemes[themeManager.resolvedTheme] = Date.now();
-		revertOrRemoveThemeFromDom(themeManager, true, true);
-
-		if (!themeManager[INTERNAL].hasListeners("loadError")) return;
-
-		const resolvedError = error instanceof Error ? error : new Error(String(error));
-		const errorEvent: ThemeLoadErrorEvent<Themes> = {
-			theme: resolvedTheme.id,
-			error: resolvedError,
-		};
-
-		await themeManager[INTERNAL].emit("loadError", errorEvent);
-
-		return;
-	}
-
-	unloadStaleThemes(themeManager);
+async function updateDom<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
 	updateMetaTags(themeManager);
 	updateAttributes(themeManager);
-
-	themeManager[INTERNAL].setPreviouslyAppliedTheme(resolvedTheme.id);
 }
 
 export async function getPersistedTheme<const Themes extends ThemesRecord>(
@@ -934,7 +797,7 @@ export function registerThemeManager<const Themes extends ThemesRecord>(themeMan
 		themeManager.resolvedUseSystemTheme;
 
 		currentLoadThemePromise = currentLoadThemePromise.then(async () => {
-			await loadThemeAndUpdateDom(themeManager);
+			await updateDom(themeManager);
 		});
 	});
 }

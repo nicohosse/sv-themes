@@ -1,4 +1,4 @@
-import type { Theme, ThemeAttribute, ThemesRecord } from "./theme.js";
+import type { ThemeAttribute, ThemesRecord } from "./theme.js";
 import {
 	STORAGE_METHOD_PRIORITY,
 	type StorageMethod,
@@ -88,45 +88,6 @@ function themeScript(
 		return isDark ? resolvedSystemThemes.dark : resolvedSystemThemes.light;
 	};
 
-	const loadTheme = (theme: Theme) => {
-		if (!theme.css?.src) return;
-
-		const source = encodeURI(theme.css.src);
-
-		let preloadLinkElement = document.querySelector<HTMLLinkElement>(
-			`link[rel="preload"][as="style"][href="${source}"]`,
-		);
-
-		const isNew = !preloadLinkElement;
-
-		if (!preloadLinkElement) {
-			preloadLinkElement = document.createElement("link");
-			preloadLinkElement.rel = "preload";
-			preloadLinkElement.as = "style";
-			preloadLinkElement.href = source;
-		}
-
-		const attachCss = () => {
-			let stylesheetLinkElement = document.querySelector<HTMLLinkElement>(`link[rel="stylesheet"][href="${source}"]`);
-			const isNew = !stylesheetLinkElement;
-
-			if (!stylesheetLinkElement) {
-				stylesheetLinkElement = document.createElement("link");
-				stylesheetLinkElement.rel = "stylesheet";
-				stylesheetLinkElement.href = source;
-			}
-			stylesheetLinkElement.onload = () => preloadLinkElement?.remove();
-			stylesheetLinkElement.onerror = () => preloadLinkElement?.remove();
-
-			if (isNew) document.head.appendChild(stylesheetLinkElement);
-		};
-
-		preloadLinkElement.onload = attachCss;
-
-		if (preloadLinkElement.sheet) attachCss();
-		if (isNew) document.head.appendChild(preloadLinkElement);
-	};
-
 	const persistedTheme = getPersistedTheme();
 	const resolvedTheme =
 		themes[
@@ -134,8 +95,6 @@ function themeScript(
 				? resolveSystemTheme()
 				: (forcedTheme ?? persistedTheme ?? selectedTheme)
 		];
-
-	loadTheme(resolvedTheme);
 
 	const allThemeClasses = themeIds.map((id) => themes[id].className ?? id);
 

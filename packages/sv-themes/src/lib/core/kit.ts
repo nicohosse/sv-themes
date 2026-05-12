@@ -5,13 +5,12 @@ import {
 	CLASS_ATTRIBUTE_REGEX,
 	FORCED_THEME_META_REGEX,
 	getSSRAttributes,
-	getThemesToLoad,
 	HEAD_CLOSE_REGEX,
 	HTML_TAG_REGEX,
 	resolveForcedTheme,
 	STYLE_ATTRIBUTE_REGEX,
 } from "./server.js";
-import { getThemeCssLinks, type ThemesRecord } from "./theme.js";
+import type { ThemesRecord } from "./theme.js";
 import { getErrorMessage } from "./theme-manager.errors.js";
 import { getPersistedTheme, type ThemeManager } from "./theme-manager.svelte.js";
 
@@ -27,7 +26,6 @@ export function createThemeHandle<Themes extends ThemesRecord>(themeManager: The
 		const cspNonce = event.locals.cspNonce;
 
 		let cachedData: {
-			themesToLoad: ReturnType<typeof getThemesToLoad>;
 			ssrAttributes: ReturnType<typeof getSSRAttributes>;
 			scriptTag: string;
 		} | null = null;
@@ -41,15 +39,12 @@ export function createThemeHandle<Themes extends ThemesRecord>(themeManager: The
 
 					flushSync();
 
-					const themesToLoad = getThemesToLoad(themeManager);
-
 					const ssrAttributes = getSSRAttributes(themeManager);
 
 					const scriptContent = getThemeScript({ ...themeManager });
 					const scriptTag = `<script${cspNonce ? ` nonce="${cspNonce}"` : ""}>${scriptContent}</script>`;
 
 					cachedData = {
-						themesToLoad,
 						ssrAttributes,
 						scriptTag,
 					};
@@ -74,10 +69,7 @@ export function createThemeHandle<Themes extends ThemesRecord>(themeManager: The
 
 						return `<html${updatedAttributes}>`;
 					})
-					.replace(
-						HEAD_CLOSE_REGEX,
-						`${cachedData.themesToLoad.map(({ theme, media }) => getThemeCssLinks(theme, true, media)?.join("\n")).join("\n")}\n${cachedData.scriptTag}</head>`,
-					)
+					.replace(HEAD_CLOSE_REGEX, `\n${cachedData.scriptTag}</head>`)
 					.replaceAll(FORCED_THEME_META_REGEX, "");
 			},
 		});
