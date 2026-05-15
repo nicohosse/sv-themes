@@ -25,8 +25,8 @@ export interface ForcedThemeEvent<Themes extends ThemesRecord> {
 export type UnforcedThemeEvent = NonNullable<unknown>;
 
 export type ThemeEvents<Themes extends ThemesRecord> = {
-	beforeChange: AfterThemeChangeEvent<Themes>;
-	afterChange: ThemeChangeEvent<Themes>;
+	beforeChange: BeforeThemeChangeEvent<Themes>;
+	afterChange: AfterThemeChangeEvent<Themes>;
 	systemChange: SystemThemeChangeEvent<Themes>;
 	forced: ForcedThemeEvent<Themes>;
 	unforced: UnforcedThemeEvent;

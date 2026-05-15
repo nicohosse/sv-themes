@@ -5,6 +5,8 @@ import { untrack } from "svelte";
 import { forceThemeRegistry } from "$lib/contexts/force-theme-requests-context.svelte.js";
 import { type CookieOptions, getCookie, setCookie } from "../utils/cookie.js";
 import { resolveCssColor } from "../utils/resolve-css-color.js";
+import type { Theme, ThemeAttribute, ThemesRecord } from "./theme.js";
+import { getErrorMessage, ThemeManagerError } from "./theme-manager.errors.js";
 import type {
 	AfterThemeChangeEvent,
 	BeforeThemeChangeEvent,
@@ -12,9 +14,7 @@ import type {
 	Listener,
 	SystemThemeChangeEvent,
 	ThemeEvents,
-} from "./theme.events.js";
-import type { Theme, ThemeAttribute, ThemesRecord } from "./theme.js";
-import { getErrorMessage, ThemeManagerError } from "./theme-manager.errors.js";
+} from "./theme-manager.events.js";
 
 export function createThemes<const Themes extends readonly Theme[]>(
 	themes: Themes,
@@ -87,8 +87,6 @@ export interface ThemeManager<Themes extends ThemesRecord = ThemesRecord> {
 
 	readonly hasLightTheme?: boolean;
 	readonly hasDarkTheme?: boolean;
-	readonly hasLightSystemTheme?: boolean;
-	readonly hasDarkSystemTheme?: boolean;
 
 	readonly initialTheme: keyof Themes;
 	readonly resolvedTheme: keyof Themes;
@@ -127,7 +125,7 @@ export interface ThemeManager<Themes extends ThemesRecord = ThemesRecord> {
 
 export type ThemesOf<M> = M extends ThemeManager<infer T> ? keyof T : never;
 
-function validateRequestedTheme<const Themes extends ThemesRecord>(
+export function validateRequestedTheme<const Themes extends ThemesRecord>(
 	themeManager: ThemeManager<Themes>,
 	requestedTheme: keyof Themes,
 ): Result<void, ThemeManagerError> {
@@ -137,11 +135,15 @@ function validateRequestedTheme<const Themes extends ThemesRecord>(
 	return ok();
 }
 
-function validateSystemTheme<const Themes extends ThemesRecord>(
+export function validateSystemTheme<const Themes extends ThemesRecord>(
 	themeManager: ThemeManager<Themes>,
 	systemTheme: SystemTheme,
 ): Result<void, ThemeManagerError> {
-	const hasSystemTheme = systemTheme === "light" ? themeManager.hasLightSystemTheme : themeManager.hasDarkSystemTheme;
+	const hasSystemTheme =
+		systemTheme === "light"
+			? themeManager.themeIds.includes(themeManager.resolvedSystemThemes.light)
+			: themeManager.hasDarkSystemTheme;
+
 	const resolvedSystemThemeId =
 		systemTheme === "light" ? themeManager.resolvedSystemThemes.light : themeManager.resolvedSystemThemes.dark;
 
@@ -152,13 +154,13 @@ function validateSystemTheme<const Themes extends ThemesRecord>(
 	return ok();
 }
 
-function validateTheme(theme: Theme): Result<void, ThemeManagerError> {
-	if (theme.id === "system") return err(ThemeManagerError.themeInvalidId(theme.id));
+export function validateTheme(theme: Theme): Result<void, ThemeManagerError> {
+	if (theme.id === "system" || !theme.id.trim()) return err(ThemeManagerError.themeInvalidId(theme.id));
 
 	return ok();
 }
 
-function validateThemeManager<const Themes extends ThemesRecord>(
+export function validateThemeManager<const Themes extends ThemesRecord>(
 	themeManager: ThemeManager<Themes>,
 ): Result<void, ThemeManagerError[]> {
 	const errors = [];
@@ -186,8 +188,9 @@ function validateThemeManager<const Themes extends ThemesRecord>(
 	return ok();
 }
 
-function resolveSystemThemes<const Themes extends ThemesRecord>(
+export function resolveSystemThemes<const Themes extends ThemesRecord>(
 	themes: Themes,
+	fallbackTheme: keyof Themes,
 	systemThemes?: Partial<Record<SystemTheme, keyof Themes>>,
 ): Record<SystemTheme, keyof Themes> {
 	const themeValues = Object.values(themes);
@@ -195,8 +198,8 @@ function resolveSystemThemes<const Themes extends ThemesRecord>(
 	const firstDarkTheme = themeValues.find((theme) => theme.type === "dark")?.id;
 
 	return {
-		light: systemThemes?.light ?? firstLightTheme ?? "light",
-		dark: systemThemes?.dark ?? firstDarkTheme ?? "dark",
+		light: systemThemes?.light ?? firstLightTheme ?? fallbackTheme,
+		dark: systemThemes?.dark ?? firstDarkTheme ?? fallbackTheme,
 	};
 }
 
@@ -245,7 +248,7 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 	});
 
 	const themeIds = Object.keys(themes) as (keyof Themes)[];
-	const resolvedSystemThemes = resolveSystemThemes(themes, systemThemes);
+	const resolvedSystemThemes = resolveSystemThemes(themes, initialTheme, systemThemes);
 
 	const resolvedUseSystemTheme = $derived(
 		enableSystemThemes && ((!state.forcedTheme && state.useSystemTheme) || state.forcedTheme === "system"),
@@ -261,7 +264,7 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 	});
 
 	const setUseSystemTheme = (useSystemTheme: boolean): Result<void, ThemeManagerError> => {
-		if (!themeManager.enableSystemThemes) return err(ThemeManagerError.systemThemesDisabled);
+		if (useSystemTheme && !themeManager.enableSystemThemes) return err(ThemeManagerError.systemThemesDisabled);
 
 		state.useSystemTheme = useSystemTheme;
 		return ok();
@@ -388,8 +391,6 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 
 	const hasLightTheme = !!Object.values(themes).find((theme) => theme.type === "light");
 	const hasDarkTheme = !!Object.values(themes).find((theme) => theme.type === "dark");
-	const hasLightSystemTheme = themeIds.includes(resolvedSystemThemes.light);
-	const hasDarkSystemTheme = themeIds.includes(resolvedSystemThemes.dark);
 
 	type Events = ThemeEvents<Themes>;
 
@@ -438,8 +439,6 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 
 		hasLightTheme,
 		hasDarkTheme,
-		hasLightSystemTheme,
-		hasDarkSystemTheme,
 
 		initialTheme,
 
@@ -496,7 +495,7 @@ export function createThemeManager<const Themes extends ThemesRecord>({
 	});
 }
 
-function updateMetaTags<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
+export function updateMetaTags<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
 	if (!BROWSER) return;
 
 	const resolvedTheme = themeManager.themes[themeManager.resolvedTheme];
@@ -552,7 +551,7 @@ function updateMetaTags<const Themes extends ThemesRecord>(themeManager: ThemeMa
 	themeColorMetaElement.content = resolvedColor;
 }
 
-function cleanUpThemeClasses<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
+export function cleanUpThemeClasses<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
 	if (!BROWSER) return;
 
 	const classesToRemove = themeManager.themeIds
@@ -563,7 +562,7 @@ function cleanUpThemeClasses<const Themes extends ThemesRecord>(themeManager: Th
 	for (const className of classesToRemove) document.documentElement.classList.remove(className);
 }
 
-function updateAttributes<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
+export function updateAttributes<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
 	if (!BROWSER) return;
 
 	cleanUpThemeClasses(themeManager);
@@ -587,7 +586,7 @@ function updateAttributes<const Themes extends ThemesRecord>(themeManager: Theme
 		} else document.documentElement.setAttribute(attribute, themeManager.resolvedTheme.toString());
 }
 
-function registerMediaListener<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
+export function registerMediaListener<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
 	if (!themeManager.enableSystemThemes || !BROWSER) return () => {};
 
 	const media = globalThis.matchMedia("(prefers-color-scheme: dark)");
@@ -608,7 +607,7 @@ function registerMediaListener<const Themes extends ThemesRecord>(themeManager: 
 	};
 }
 
-async function updateDom<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
+export function updateDom<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
 	updateMetaTags(themeManager);
 	updateAttributes(themeManager);
 }
@@ -638,7 +637,7 @@ export async function getPersistedTheme<const Themes extends ThemesRecord>(
 		const isCookie = storageMethod === "cookie";
 
 		if (BROWSER && isLocalStorage && !config?.serverSideOnly) {
-			const storedTheme = localStorage.getItem(themeManager.storage.key);
+			const storedTheme = globalThis.localStorage.getItem(themeManager.storage.key);
 
 			if (!storedTheme) {
 				if (config?.errorOnMiss)
@@ -654,7 +653,7 @@ export async function getPersistedTheme<const Themes extends ThemesRecord>(
 		} else if (!BROWSER && isLocalStorage && !config?.serverSideOnly)
 			console.error(`Tried to get theme from local storage from a non-browser context. Skipping.`);
 		else if (BROWSER && isSessionStorage && !config?.serverSideOnly) {
-			const storedTheme = sessionStorage.getItem(themeManager.storage.key);
+			const storedTheme = globalThis.sessionStorage.getItem(themeManager.storage.key);
 
 			if (!storedTheme) {
 				if (config?.errorOnMiss)
@@ -714,18 +713,18 @@ export async function persistTheme<const Themes extends ThemesRecord>(
 
 	const themeId = theme.toString();
 
-	if (BROWSER && useLocalStorage) localStorage.setItem(themeManager.storage.key, themeId);
+	if (BROWSER && useLocalStorage) globalThis.localStorage.setItem(themeManager.storage.key, themeId);
 	else if (!BROWSER && useLocalStorage)
 		console.error(`Tried to save theme '${themeId}' to local storage in a non-browser context. Skipping.`);
 
-	if (BROWSER && useSessionStorage) sessionStorage.setItem(themeManager.storage.key, themeId);
+	if (BROWSER && useSessionStorage) globalThis.sessionStorage.setItem(themeManager.storage.key, themeId);
 	else if (!BROWSER && useSessionStorage)
 		console.error(`Tried to save theme '${themeId}' to session storage in a non-browser context. Skipping.`);
 
 	if (useCookie) await setCookie(themeId, themeManager.storage.cookie, cookies);
 }
 
-function registerStorageListener<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
+export function registerStorageListener<const Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
 	if (!BROWSER || !themeManager.storage || !themeManager.enableTabSync) return () => {};
 
 	const useLocalStorage = themeManager.storage.methods?.includes("localStorage");
@@ -737,8 +736,8 @@ function registerStorageListener<const Themes extends ThemesRecord>(themeManager
 		const isThemeKey = event.key === themeManager.storage?.key;
 		if (!isThemeKey) return;
 
-		const isLocalStorage = event.storageArea === localStorage;
-		const isSessionStorage = event.storageArea === sessionStorage;
+		const isLocalStorage = event.storageArea === globalThis.localStorage;
+		const isSessionStorage = event.storageArea === globalThis.sessionStorage;
 
 		if ((useLocalStorage && isLocalStorage) || (useSessionStorage && isSessionStorage)) {
 			const storageTheme = event.newValue as keyof Themes | "system";
