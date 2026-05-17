@@ -1,49 +1,38 @@
-import type { ThemeAttribute, ThemesRecord } from "./theme.js";
-import {
-	STORAGE_METHOD_PRIORITY,
-	type StorageMethod,
-	type StorageOptions,
-	type SystemTheme,
-} from "./theme-manager.svelte.js";
+import type { StorageMethod, StorageOptions, ThemeAttribute, ThemeManager, ThemeRecord } from "$lib/index.js";
+import { STORAGE_METHOD_PRIORITY, type SystemThemes } from "./theme-manager/index.js";
 
-interface ThemeScriptArguments<Themes extends ThemesRecord> {
-	themes: Themes;
-	themeIds: (keyof Themes)[];
+type ThemeScriptArguments<Themes extends ThemeRecord> = Pick<
+	ThemeManager<Themes>,
+	| "themes"
+	| "themeIds"
+	| "systemThemes"
+	| "useSystemTheme"
+	| "initialTheme"
+	| "selectedTheme"
+	| "forcedTheme"
+	| "useColorScheme"
+	| "useThemeColor"
+	| "isThemeForcedAttribute"
+	| "isSystemThemeAttribute"
+	| "storage"
+	| "attributes"
+>;
 
-	resolvedSystemThemes: Record<SystemTheme, keyof Themes>;
-	useSystemTheme?: boolean;
-
-	hasLightTheme?: boolean;
-	hasDarkTheme?: boolean;
-
-	selectedTheme: keyof Themes;
-	forcedTheme?: keyof Themes | "system";
-
-	useColorScheme?: boolean;
-	useThemeColor?: boolean;
-
-	isThemeForcedAttribute?: string;
-	isSystemThemeAttribute?: string;
-
-	storage?: StorageOptions;
-
-	attributes: ThemeAttribute[];
-}
-
-function themeScript(
-	themes: ThemesRecord,
+function themeScript<const Themes extends ThemeRecord>(
+	themes: Themes,
 	themeIds: string[],
+	systemThemes: SystemThemes<Themes>,
+	useSystemTheme: boolean,
+	initialTheme: string,
 	selectedTheme: string,
 	attributes: ThemeAttribute[],
-	resolvedSystemThemes: Record<string, string>,
-	useSystemTheme: boolean,
 	storageMethodPriorityArray: { storageMethod: StorageMethod; priority: number }[],
-	storage?: StorageOptions,
 	forcedTheme?: string,
 	useColorScheme?: boolean,
 	useThemeColor?: boolean,
 	isThemeForcedAttribute?: string,
 	isSystemThemeAttribute?: string,
+	storage?: StorageOptions,
 ) {
 	const rootElement = document.documentElement;
 
@@ -84,28 +73,29 @@ function themeScript(
 	};
 
 	const resolveSystemTheme = () => {
+		if (systemThemes.kind === "disabled") return;
+
 		const isDark = globalThis.matchMedia("(prefers-color-scheme: dark)").matches;
-		return isDark ? resolvedSystemThemes.dark : resolvedSystemThemes.light;
+		return isDark ? systemThemes.mappings.dark : systemThemes.mappings.light;
 	};
 
 	const persistedTheme = getPersistedTheme();
+
+	const resolvedUseSystemTheme =
+		(useSystemTheme || (forcedTheme ?? persistedTheme) === "system") && systemThemes.kind === "enabled";
+
 	const resolvedTheme =
 		themes[
-			useSystemTheme || (forcedTheme ?? persistedTheme) === "system"
-				? resolveSystemTheme()
-				: (forcedTheme ?? persistedTheme ?? selectedTheme)
+			(resolvedUseSystemTheme ? resolveSystemTheme() : (forcedTheme ?? persistedTheme ?? selectedTheme)) ?? initialTheme
 		];
 
 	const allThemeClasses = themeIds.map((id) => themes[id].className ?? id);
 
-	for (const attribute of attributes) {
+	for (const attribute of attributes)
 		if (attribute === "class") {
 			rootElement.classList.remove(...allThemeClasses);
 			rootElement.classList.add(resolvedTheme.className ?? resolvedTheme.id);
-		} else {
-			rootElement.setAttribute(attribute, resolvedTheme.id);
-		}
-	}
+		} else rootElement.setAttribute(attribute, resolvedTheme.id);
 
 	if (useColorScheme) {
 		rootElement.style.colorScheme = resolvedTheme.type;
@@ -162,23 +152,24 @@ function themeScript(
 
 const NAME_MINIFICATION_REGEX = /^\s*__name\([^)]*\);?\s*(?:\/\/.*)?$/gm;
 
-export function getThemeScript<const Themes extends ThemesRecord>(config: Readonly<ThemeScriptArguments<Themes>>) {
+export function getThemeScript<const Themes extends ThemeRecord>(config: Readonly<ThemeScriptArguments<Themes>>) {
 	const fn = themeScript.toString().replace(NAME_MINIFICATION_REGEX, "");
 
 	const args = [
 		config.themes,
 		config.themeIds,
+		config.systemThemes,
+		config.useSystemTheme,
+		config.initialTheme,
 		config.selectedTheme,
 		config.attributes,
-		config.resolvedSystemThemes,
-		config.useSystemTheme,
 		Array.from(STORAGE_METHOD_PRIORITY.entries()),
-		config.storage,
 		config.forcedTheme,
 		config.useColorScheme,
 		config.useThemeColor,
 		config.isThemeForcedAttribute,
 		config.isSystemThemeAttribute,
+		config.storage,
 	]
 		.map((argument) => (argument === undefined ? "undefined" : safeSerializeArgument(argument)))
 		.join(",");

@@ -1,5 +1,4 @@
-import type { ThemesRecord } from "./theme.js";
-import type { ThemeManager } from "./theme-manager.svelte.js";
+import type { ThemeManager, ThemeRecord } from "$lib/index.js";
 
 export const HTML_TAG_REGEX = /<html([^>]*)>/;
 export const HEAD_CLOSE_REGEX = /<\/head>/;
@@ -10,7 +9,7 @@ export const STYLE_ATTRIBUTE_REGEX = /style=["']([^"']*)["']/;
 export const FORCED_THEME_META_REGEX =
 	/<meta\b[^>]*\bname=["']sv-themes-force-theme["'][^>]*\bcontent=["']forcedTheme=(?<forcedTheme>[^;]+);priority=(?<priority>[^;]+);overrideChildren=(?<overrideChildren>[^"']+)["'][^>]*>/gi;
 
-export function getSSRAttributes<Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>) {
+export function getSSRAttributes<Themes extends ThemeRecord>(themeManager: ThemeManager<Themes>) {
 	const resolvedTheme = themeManager.themes[themeManager.resolvedTheme];
 	const attributes: Record<string, string> = {};
 

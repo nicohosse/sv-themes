@@ -1,27 +1,28 @@
 import type { ActionReturn } from "svelte/action";
-import { getErrorMessage } from "$lib/core/theme-manager.errors.js";
-import type { ThemesRecord } from "../core/theme.js";
-import type { ThemeManager } from "../core/theme-manager.svelte.js";
+import type { ThemeManager, ThemeRecord } from "$lib/index.js";
 
-type ThemeSelectorParams<Themes extends ThemesRecord> = {
+type ThemeSelectorParams<Themes extends ThemeRecord> = {
 	theme: keyof Themes | "system";
 	themeManager: ThemeManager<Themes>;
 };
 
-export function themeSelector<Themes extends ThemesRecord>(
+export function themeSelector<Themes extends ThemeRecord>(
 	node: HTMLButtonElement,
 	params: ThemeSelectorParams<Themes>,
 ): ActionReturn<ThemeSelectorParams<Themes>> {
 	let { theme: themeId, themeManager } = params;
 
-	let resolvedThemeId =
-		themeId === "system" && themeManager.systemTheme
-			? themeManager.resolvedSystemThemes[themeManager.systemTheme]
+	const getResolvedThemeId = () => {
+		return themeId === "system" && themeManager.systemThemes.kind === "enabled" && themeManager.systemThemes.systemTheme
+			? themeManager.systemThemes.mappings[themeManager.systemThemes.systemTheme]
 			: themeId;
+	};
+
+	let resolvedThemeId = getResolvedThemeId();
 
 	const onClick = async () => {
 		const result = await themeManager.setTheme(themeId);
-		if (result.isErr()) console.error(getErrorMessage(result.error));
+		if (result.isErr()) console.error(result.error.message);
 	};
 
 	node.addEventListener("click", onClick);
@@ -38,10 +39,7 @@ export function themeSelector<Themes extends ThemesRecord>(
 			themeId = newParams.theme;
 			themeManager = newParams.themeManager;
 
-			resolvedThemeId =
-				themeId === "system" && themeManager.systemTheme
-					? themeManager.resolvedSystemThemes[themeManager.systemTheme]
-					: themeId;
+			resolvedThemeId = getResolvedThemeId();
 		},
 
 		destroy() {

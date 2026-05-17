@@ -6,7 +6,7 @@
 </script>
 
 <main>
-	<ForceTheme {themeManager} {forcedTheme} />
+	<ForceTheme {forcedTheme} />
 	{#each themeManager.themeIds as themeId}
 		<button
 			type="button"

@@ -1,16 +1,21 @@
-export * from "./actions/theme-selector.svelte.js";
+export { themeSelector } from "./actions/theme-selector.svelte.js";
+
 export { default as ForceTheme } from "./components/ForceTheme.svelte";
-export type {
-	Theme,
-	ThemeAttribute,
-	ThemesRecord,
-} from "./core/theme.js";
-export * from "./core/theme-manager.errors.js";
+
 export {
-	createThemeManager,
 	createThemes,
 	DEFAULT_THEMES,
-	type DefaultTheme,
+	type Theme,
+	ThemeError,
+	type ThemeRecord,
+} from "./core/theme/index.js";
+
+export {
+	type AfterThemeChangeEvent,
+	type BeforeThemeChangeEvent,
+	createThemeManager,
+	DEFAULT_STORAGE_HYBRID,
+	type ForcedThemeEvent,
 	getPersistedTheme,
 	HYBRID_STORAGE_METHODS,
 	persistTheme,
@@ -18,6 +23,12 @@ export {
 	type StorageMethod,
 	type StorageOptions,
 	type SystemTheme,
+	type SystemThemeChangeEvent,
+	type ThemeAttribute,
+	type ThemeChangeEvent,
 	type ThemeManager,
+	type ThemeManagerConfig,
+	ThemeManagerError,
 	type ThemesOf,
-} from "./core/theme-manager.svelte.js";
+	type UnforcedThemeEvent,
+} from "./core/theme-manager/index.js";

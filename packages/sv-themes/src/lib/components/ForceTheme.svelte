@@ -1,4 +1,4 @@
-<script lang="ts" generics="const Themes extends ThemesRecord">
+<script lang="ts" generics="const Themes extends ThemeRecord">
 	import { BROWSER } from "esm-env";
 	import type { Snippet } from "svelte";
 	import {
@@ -6,9 +6,9 @@
 		getForceThemeParentId,
 		setForceThemeParentId,
 	} from "$lib/contexts/force-theme-requests-context.svelte.js";
-	import type { ThemesRecord } from "$lib/core/theme.js";
+	import type { ThemeRecord } from "$lib/index.js";
 
-	interface ForceThemeProps<Themes extends ThemesRecord> {
+	interface ForceThemeProps<Themes extends ThemeRecord> {
 		forcedTheme?: keyof Themes | "system";
 		priority?: number;
 		overrideChildren?: boolean;

@@ -1,5 +1,6 @@
 import type { Handle } from "@sveltejs/kit";
 import { flushSync } from "svelte";
+import { getPersistedTheme, type ThemeManager } from "$lib/index.js";
 import { getThemeScript } from "./script.js";
 import {
 	CLASS_ATTRIBUTE_REGEX,
@@ -10,11 +11,9 @@ import {
 	resolveForcedTheme,
 	STYLE_ATTRIBUTE_REGEX,
 } from "./server.js";
-import type { ThemesRecord } from "./theme.js";
-import { getErrorMessage } from "./theme-manager.errors.js";
-import { getPersistedTheme, type ThemeManager } from "./theme-manager.svelte.js";
+import type { ThemeRecord } from "./theme/theme.js";
 
-export function createThemeHandle<Themes extends ThemesRecord>(themeManager: ThemeManager<Themes>): Handle {
+export function createThemeHandle<Themes extends ThemeRecord>(themeManager: ThemeManager<Themes>): Handle {
 	return async ({ event, resolve }) => {
 		const persistedTheme = await getPersistedTheme(themeManager, {
 			serverSideOnly: true,
@@ -35,7 +34,7 @@ export function createThemeHandle<Themes extends ThemesRecord>(themeManager: The
 				if (!cachedData) {
 					const forcedTheme = resolveForcedTheme(html) as keyof Themes | "system" | undefined;
 					const forcedThemeResult = await themeManager.setForcedTheme(forcedTheme);
-					if (forcedThemeResult.isErr()) throw new Error(getErrorMessage(forcedThemeResult.error));
+					if (forcedThemeResult.isErr()) throw new Error(forcedThemeResult.error.message);
 
 					flushSync();
 
