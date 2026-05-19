@@ -9,6 +9,9 @@ export default defineConfig({
 	plugins: [svelte(), svelteTesting()],
 	test: {
 		environment: "jsdom",
+		restoreMocks: true,
+		clearMocks: true,
+		mockReset: true,
 		setupFiles: ["./src/lib/tests/setup.ts"],
 		include: ["src/**/*.test.ts"],
 		alias: {

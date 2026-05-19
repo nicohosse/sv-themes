@@ -1,22 +1,31 @@
 import { BROWSER } from "esm-env";
 
-type ResolveCssColorOptions = {
-	allowFallback?: boolean;
-};
+let resolverElement: HTMLDivElement | undefined;
 
-const resolverElement = BROWSER ? document.createElement("div") : undefined;
+export function getResolverElement(): HTMLDivElement | undefined {
+	if (!BROWSER) return;
 
-if (resolverElement) {
+	if (resolverElement) return resolverElement;
+
+	resolverElement = document.createElement("div");
 	resolverElement.style.display = "none";
+
 	document.body.appendChild(resolverElement);
+
+	return resolverElement;
 }
 
 const VAR_REGEX = /^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/;
 
-export function resolveCssColor(value: string, options: ResolveCssColorOptions = {}): string | undefined {
+type ResolveCssColorOptions = {
+	allowFallback?: boolean;
+};
+
+export function resolveCssColor(value: string, options?: ResolveCssColorOptions): string | undefined {
+	const resolverElement = getResolverElement();
 	if (!resolverElement) return;
 
-	const { allowFallback = true } = options;
+	const { allowFallback = true } = options ?? {};
 
 	const varMatch = VAR_REGEX.exec(value);
 
@@ -31,13 +40,12 @@ export function resolveCssColor(value: string, options: ResolveCssColorOptions =
 		return undefined;
 	}
 
-	return normalizeColor(value);
+	return normalizeColor(variableValue);
 }
 
-function normalizeColor(color: string): string {
-	if (!resolverElement) {
-		throw new Error("No DOM available for color resolution.");
-	}
+export function normalizeColor(color: string): string {
+	const resolverElement = getResolverElement();
+	if (!resolverElement) throw new Error("No DOM available for color resolution.");
 
 	resolverElement.style.color = color;
 

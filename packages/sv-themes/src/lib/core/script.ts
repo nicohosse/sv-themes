@@ -1,7 +1,7 @@
 import type { StorageMethod, StorageOptions, ThemeAttribute, ThemeManager, ThemeRecord } from "$lib/index.js";
 import { STORAGE_METHOD_PRIORITY, type SystemThemes } from "./theme-manager/index.js";
 
-type ThemeScriptArguments<Themes extends ThemeRecord> = Pick<
+export type ThemeScriptArguments<Themes extends ThemeRecord = ThemeRecord> = Pick<
 	ThemeManager<Themes>,
 	| "themes"
 	| "themeIds"
@@ -18,7 +18,7 @@ type ThemeScriptArguments<Themes extends ThemeRecord> = Pick<
 	| "attributes"
 >;
 
-function themeScript<const Themes extends ThemeRecord>(
+export function themeScript<const Themes extends ThemeRecord>(
 	themes: Themes,
 	themeIds: string[],
 	systemThemes: SystemThemes<Themes>,
@@ -26,7 +26,7 @@ function themeScript<const Themes extends ThemeRecord>(
 	initialTheme: string,
 	selectedTheme: string,
 	attributes: ThemeAttribute[],
-	storageMethodPriorityArray: { storageMethod: StorageMethod; priority: number }[],
+	storageMethodPriority: Record<StorageMethod, number>,
 	forcedTheme?: string,
 	useColorScheme?: boolean,
 	useThemeColor?: boolean,
@@ -39,14 +39,10 @@ function themeScript<const Themes extends ThemeRecord>(
 	const getPersistedTheme = (): string | undefined => {
 		if (!storage) return undefined;
 
-		const storageMethodPriority = new Map(
-			storageMethodPriorityArray.map(({ storageMethod, priority }) => [storageMethod, priority]),
-		);
-
 		const persistedThemes: Map<StorageMethod, string> = new Map();
 
-		const sortedStorageMethods = storage?.methods.toSorted(
-			(a, b) => (storageMethodPriority.get(b) ?? Infinity) - (storageMethodPriority.get(a) ?? Infinity),
+		const sortedStorageMethods = storage?.methods?.toSorted(
+			(a, b) => storageMethodPriority[b] - storageMethodPriority[a],
 		);
 
 		let dominantTheme: string | undefined;
@@ -150,7 +146,7 @@ function themeScript<const Themes extends ThemeRecord>(
 	if (document.currentScript) document.currentScript.remove();
 }
 
-const NAME_MINIFICATION_REGEX = /^\s*__name\([^)]*\);?\s*(?:\/\/.*)?$/gm;
+const NAME_MINIFICATION_REGEX = /\s*__name\([^;]*\);?/g;
 
 export function getThemeScript<const Themes extends ThemeRecord>(config: Readonly<ThemeScriptArguments<Themes>>) {
 	const fn = themeScript.toString().replace(NAME_MINIFICATION_REGEX, "");
@@ -163,7 +159,7 @@ export function getThemeScript<const Themes extends ThemeRecord>(config: Readonl
 		config.initialTheme,
 		config.selectedTheme,
 		config.attributes,
-		Array.from(STORAGE_METHOD_PRIORITY.entries()),
+		STORAGE_METHOD_PRIORITY,
 		config.forcedTheme,
 		config.useColorScheme,
 		config.useThemeColor,
@@ -177,12 +173,12 @@ export function getThemeScript<const Themes extends ThemeRecord>(config: Readonl
 	return `(${fn})(${args})`;
 }
 
-function safeSerializeArgument(argument: unknown): string {
+export function safeSerializeArgument(argument: unknown): string {
 	const json = JSON.stringify(argument);
 
 	return json
-		.replace(/<\/script/gi, "<\\/script")
-		.replace(/<\s*\/\s*script/gi, "<\\/script")
+		.replace(/<\/script\s*>/gi, "<\\/script>")
+		.replace(/<\s*\/\s*script\s*>/gi, "<\\/script>")
 		.replace(/<!--/g, "<\\!--")
-		.replace(/<\/\w+/g, (match) => match.replace("<", "<\\"));
+		.replace(/<\/([a-zA-Z][a-zA-Z0-9-]*)>/g, "<\\$1>");
 }

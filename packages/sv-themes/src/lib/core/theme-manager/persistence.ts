@@ -18,7 +18,7 @@ export async function getPersistedTheme<const Themes extends ThemeRecord>(
 	const persistedThemes: Map<StorageMethod, string> = new Map();
 
 	const sortedStorageMethods = themeManager.storage.methods.toSorted(
-		(a, b) => (STORAGE_METHOD_PRIORITY.get(b) ?? Infinity) - (STORAGE_METHOD_PRIORITY.get(a) ?? Infinity),
+		(a, b) => STORAGE_METHOD_PRIORITY[b] - STORAGE_METHOD_PRIORITY[a],
 	);
 
 	let dominantTheme: string | undefined;

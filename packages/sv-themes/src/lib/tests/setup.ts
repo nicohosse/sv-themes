@@ -1,13 +1,9 @@
 import "@testing-library/jest-dom/vitest";
 import { format } from "@vitest/pretty-format";
 import type { Result } from "neverthrow";
-import { afterEach, expect, vi } from "vitest";
-import { getErrorMessage, type ThemeManagerError } from "../core/theme-manager.errors.js";
-
-vi.mock("esm-env", () => ({
-	BROWSER: true,
-	DEV: true,
-}));
+import { afterEach, beforeEach, expect, vi } from "vitest";
+import type { LibError } from "$lib/index.js";
+import { resetTestEnv, testEnv } from "./test-environment.js";
 
 export function expectOk<T, E>(result: Result<T, E>): T {
 	expect(result).toBeOk();
@@ -15,7 +11,7 @@ export function expectOk<T, E>(result: Result<T, E>): T {
 	return result._unsafeUnwrap();
 }
 
-function isNeverthrowResult(value: unknown): value is Result<unknown, ThemeManagerError> {
+function isNeverthrowResult(value: unknown): value is Result<unknown, LibError> {
 	return (
 		typeof value === "object" &&
 		value !== null &&
@@ -30,15 +26,13 @@ function normalizeErrors<E>(error: E): E[] {
 	return Array.isArray(error) ? error : [error];
 }
 
-function formatErrors(error: ThemeManagerError): string {
+function formatErrors(error: LibError): string {
 	const errors = normalizeErrors(error);
-	const readableErrors = errors.map(getErrorMessage);
-
-	return ["Errors:", format(errors), "Messages:", ...readableErrors.map((message) => `- ${message}`)].join("\n");
+	return ["Errors:", format(errors), "Messages:", ...errors.map((error) => `- ${error.message}`)].join("\n");
 }
 
 expect.extend({
-	toBeOk(received: Result<unknown, ThemeManagerError>) {
+	toBeOk(received: Result<unknown, LibError>) {
 		if (!isNeverthrowResult(received))
 			return {
 				pass: false,
@@ -57,11 +51,7 @@ expect.extend({
 		};
 	},
 
-	toBeErr(
-		received: Result<unknown, ThemeManagerError>,
-		expectedTypes?: ThemeManagerError["type"] | ThemeManagerError["type"][],
-		strict = true,
-	) {
+	toBeErr(received: Result<unknown, LibError>, expectedTypes?: LibError["id"] | LibError["id"][], strict = false) {
 		if (!isNeverthrowResult(received))
 			return {
 				pass: false,
@@ -79,7 +69,7 @@ expect.extend({
 		if (expectedTypes) {
 			const expected = Array.isArray(expectedTypes) ? expectedTypes : [expectedTypes];
 
-			const receivedTypes = errors.map((error) => error.type);
+			const receivedTypes = errors.map((error) => error.id);
 
 			const missingTypes = expected.filter((type) => !receivedTypes.includes(type));
 
@@ -138,13 +128,24 @@ expect.extend({
 
 interface CustomMatchers<R = unknown> {
 	toBeOk(): R;
-	toBeErr(expectedTypes?: ThemeManagerError["type"] | ThemeManagerError["type"][], strict?: boolean): R;
+	toBeErr(expectedTypes?: LibError["id"] | LibError["id"][], strict?: boolean): R;
 }
 
 declare module "vitest" {
 	interface Assertion<T> extends CustomMatchers<T> {}
 	interface AsymmetricMatchersContaining extends CustomMatchers {}
 }
+
+function clearDocumentCookies() {
+	document.cookie.split(";").forEach((cookie) => {
+		// biome-ignore lint/suspicious/noDocumentCookie: testing
+		document.cookie = cookie.replace(/^ +/, "").replace(/=.*/, `=;expires=${new Date(0).toUTCString()};path=/`);
+	});
+}
+
+beforeEach(() => {
+	testEnv().browser(true).cookieStore().apply();
+});
 
 afterEach(() => {
 	const root = document.documentElement;
@@ -159,4 +160,7 @@ afterEach(() => {
 	globalThis.sessionStorage.clear();
 
 	vi.clearAllMocks();
+
+	clearDocumentCookies();
+	resetTestEnv();
 });

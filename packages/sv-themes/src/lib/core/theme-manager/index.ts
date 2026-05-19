@@ -1,3 +1,5 @@
+// v8 ignore file
+
 export { createThemeManager, type ThemeManagerConfig } from "./create-theme-manager.svelte.js";
 
 export {

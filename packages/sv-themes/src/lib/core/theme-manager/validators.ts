@@ -57,7 +57,8 @@ export function validateThemeManagerConfig<const Themes extends ThemeRecord>(
 
 		const darkThemeResult = validateSystemTheme(config, "dark");
 		if (darkThemeResult.isErr()) errors.push(darkThemeResult.error);
-	}
+	} else if (config.systemThemes.kind === "disabled" && config.useSystemTheme)
+		errors.push(ThemeManagerError.systemThemesDisabled);
 
 	if (
 		config.enableTabSync &&

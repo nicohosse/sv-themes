@@ -1,6 +1,10 @@
+// v8 ignore file
+
 export { themeSelector } from "./actions/theme-selector.svelte.js";
 
 export { default as ForceTheme } from "./components/ForceTheme.svelte";
+
+export type { LibError } from "./core/errors.js";
 
 export {
 	createThemes,

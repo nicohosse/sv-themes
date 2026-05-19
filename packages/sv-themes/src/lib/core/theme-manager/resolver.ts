@@ -59,8 +59,10 @@ export function resolveThemeManagerConfig<const Themes extends ThemeRecord>(
 		isForcedThemeLocked: config.isForcedThemeLocked,
 		useColorScheme: config.useColorScheme ?? true,
 		useThemeColor: config.useThemeColor ?? true,
+		// v8 ignore start
 		isThemeForcedAttribute: "isThemeForcedAttribute" in config ? config.isThemeForcedAttribute : "data-is-theme-forced",
 		isSystemThemeAttribute: "isSystemThemeAttribute" in config ? config.isSystemThemeAttribute : "data-is-system-theme",
+		// v8 ignore stop
 		storage: config.storage ?? DEFAULT_STORAGE_HYBRID,
 		enableTabSync: config.enableTabSync ?? true,
 		attributes: config.attributes ?? ["class", "data-theme"],

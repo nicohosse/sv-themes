@@ -3,27 +3,27 @@ import type { SystemTheme } from "./theme-manager.js";
 
 export type ThemeManagerError = BaseError &
 	(
-		| { type: "NoThemes" }
-		| { type: "DuplicateTheme"; theme: string }
-		| { type: "ThemeNotFound"; theme: string }
-		| { type: "ThemeInvalidId"; id: string }
-		| { type: "SystemThemeUnassigned"; systemTheme: SystemTheme }
-		| { type: "SystemThemesDisabled" }
-		| { type: "SystemThemeInvalidType"; systemTheme: SystemTheme }
-		| { type: "ForcedThemeLocked" }
-		| { type: "TabSyncStorageMethodsIncompatible" }
-		| { type: "Cancelled" }
+		| { id: "NoThemes" }
+		| { id: "DuplicateTheme"; theme: string }
+		| { id: "ThemeNotFound"; theme: string }
+		| { id: "ThemeInvalidId"; theme: string }
+		| { id: "SystemThemeUnassigned"; systemTheme: SystemTheme }
+		| { id: "SystemThemesDisabled" }
+		| { id: "SystemThemeInvalidType"; systemTheme: SystemTheme }
+		| { id: "ForcedThemeLocked" }
+		| { id: "TabSyncStorageMethodsIncompatible" }
+		| { id: "Cancelled" }
 	);
 
 export const ThemeManagerError = {
 	noThemes: {
-		type: "NoThemes",
+		id: "NoThemes",
 		message: "At least one theme is required.",
 	} as const satisfies ThemeManagerError,
 
 	duplicateTheme(theme: string): ThemeManagerError {
 		return {
-			type: "DuplicateTheme",
+			id: "DuplicateTheme",
 			theme,
 			message: `Duplicate theme: ${theme}`,
 		};
@@ -31,53 +31,53 @@ export const ThemeManagerError = {
 
 	themeNotFound(theme: string): ThemeManagerError {
 		return {
-			type: "ThemeNotFound",
+			id: "ThemeNotFound",
 			theme,
 			message: `Theme '${theme}' not found.`,
 		};
 	},
 
-	themeInvalidId(id: string): ThemeManagerError {
+	themeInvalidId(theme: string): ThemeManagerError {
 		return {
-			type: "ThemeInvalidId",
-			id,
-			message: `Theme id '${id}' is invalid. The id 'system' is reserved.`,
+			id: "ThemeInvalidId",
+			theme,
+			message: `Theme id '${theme}' is invalid. The id 'system' is reserved.`,
 		};
 	},
 
 	systemThemeUnassigned(systemTheme: SystemTheme): ThemeManagerError {
 		return {
-			type: "SystemThemeUnassigned",
+			id: "SystemThemeUnassigned",
 			systemTheme,
 			message: `System theme '${systemTheme}' has no valid assigned theme.`,
 		};
 	},
 
 	systemThemesDisabled: {
-		type: "SystemThemesDisabled",
+		id: "SystemThemesDisabled",
 		message: "System themes are disabled.",
 	} as const satisfies ThemeManagerError,
 
 	systemThemeInvalidType(systemTheme: SystemTheme): ThemeManagerError {
 		return {
-			type: "SystemThemeInvalidType",
+			id: "SystemThemeInvalidType",
 			systemTheme,
 			message: `System theme '${systemTheme}' needs to be assigned to a theme with type '${systemTheme}'.`,
 		};
 	},
 
 	forcedThemeLocked: {
-		type: "ForcedThemeLocked",
+		id: "ForcedThemeLocked",
 		message: "Forced theme is locked.",
 	} as const satisfies ThemeManagerError,
 
 	tabSyncStorageMethodsIncompatible: {
-		type: "TabSyncStorageMethodsIncompatible",
+		id: "TabSyncStorageMethodsIncompatible",
 		message: "Tab sync requires at least one of the following storage methods: localStorage, sessionStorage",
 	} as const satisfies ThemeManagerError,
 
 	cancelled: {
-		type: "Cancelled",
+		id: "Cancelled",
 		message: "The operation has been cancelled.",
 	} as const satisfies ThemeManagerError,
 } as const;

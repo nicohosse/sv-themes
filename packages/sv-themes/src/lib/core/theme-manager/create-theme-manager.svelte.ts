@@ -29,7 +29,7 @@ export type SystemThemesConfig<Themes extends ThemeRecord> =
 			: T
 		: never;
 
-export type ThemeManagerConfig<Themes extends ThemeRecord> = Omit<
+export type ThemeManagerConfig<Themes extends ThemeRecord = ThemeRecord> = Omit<
 	ThemeManager<Themes>,
 	| "themeIds"
 	| "systemThemes"

@@ -13,11 +13,11 @@ const DEFAULT_THEME_COOKIE_OPTIONS: CookieOptions = {
 
 export type StorageMethod = "localStorage" | "sessionStorage" | "cookie";
 
-export const STORAGE_METHOD_PRIORITY = new Map<StorageMethod, number>([
-	["sessionStorage", 0],
-	["localStorage", 1],
-	["cookie", 2],
-] as const);
+export const STORAGE_METHOD_PRIORITY: Record<StorageMethod, number> = {
+	sessionStorage: 0,
+	localStorage: 1,
+	cookie: 2,
+} as const;
 
 export const HYBRID_STORAGE_METHODS: StorageMethod[] = ["cookie", "localStorage"] as const;
 

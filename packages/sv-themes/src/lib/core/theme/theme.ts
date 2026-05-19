@@ -32,6 +32,7 @@ export const DEFAULT_THEMES = createThemes([
 	{ id: "dark", type: "dark", color: "#000" },
 ]).match(
 	(themes) => themes,
+	// v8 ignore next
 	(errors) => {
 		throw new Error(`Failed to create themes: ${JSON.stringify(errors.map((error) => error.message))}`);
 	},

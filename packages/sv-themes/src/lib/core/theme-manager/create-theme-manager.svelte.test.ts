@@ -1,17 +1,12 @@
-import { expect, it } from "vitest";
-import { createValidThemeManager, VALID_THEME_MANAGER_CONFIG } from "$lib/tests/theme-manager.js";
-import { createThemeManager } from "./create-theme-manager.svelte.js";
+import { describe, expect, it } from "vitest";
+import { createThemeManager, INVALID_THEME_MANAGER_CONFIG_CASES } from "$lib/tests/theme-manager.js";
 
-it("should initialize successfully with valid config", () => {
-	createValidThemeManager();
-});
+describe("createThemeManager", () => {
+	it("should return Ok with valid config", () => {
+		createThemeManager();
+	});
 
-it("should return Err when initialized with an invalid initialTheme", () => {
-	expect(
-		createThemeManager({
-			...VALID_THEME_MANAGER_CONFIG,
-			// @ts-expect-error testing
-			initialTheme: "invalid-theme",
-		}),
-	).toBeErr("ThemeNotFound");
+	it.each(INVALID_THEME_MANAGER_CONFIG_CASES)("should reject: $name", ({ config, expectedError }) => {
+		expect(createThemeManager(config)).toBeErr(expectedError);
+	});
 });

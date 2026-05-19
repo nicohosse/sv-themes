@@ -25,6 +25,3 @@ vite.config.ts.timestamp-*
 
 # Vitest
 /coverage
-
-# Bun
-bun.lock

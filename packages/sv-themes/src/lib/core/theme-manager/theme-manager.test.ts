@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import { createThemeManagerWithMockConfig } from "$lib/tests/theme-manager.js";
+import { createThemeManager } from "$lib/tests/theme-manager.js";
 
-describe("theme manager", () => {
+describe("Theme Manager", () => {
 	it("should have identical themes and themeIds keys", () => {
-		const themeManager = createThemeManagerWithMockConfig();
+		const themeManager = createThemeManager();
 
 		expect(Object.keys(themeManager.themes)).toEqual(themeManager.themeIds);
 	});
 
 	it("should transition themes and emit events correctly", async () => {
-		const themeManager = createThemeManagerWithMockConfig();
+		const themeManager = createThemeManager();
 
 		const beforeChangeSpy = vi.fn();
 		const afterChangeSpy = vi.fn();
@@ -29,7 +29,7 @@ describe("theme manager", () => {
 	});
 
 	it("should cancel theme transition if preventDefault is called", async () => {
-		const themeManager = createThemeManagerWithMockConfig();
+		const themeManager = createThemeManager();
 
 		themeManager.on("beforeChange", (event) => {
 			event.preventDefault();
@@ -42,7 +42,7 @@ describe("theme manager", () => {
 	});
 
 	it("should lock forced themes correctly", async () => {
-		const themeManager = createThemeManagerWithMockConfig();
+		const themeManager = createThemeManager();
 
 		await themeManager.setForcedTheme("dark", true);
 		expect(themeManager.resolvedTheme).toBe("dark");

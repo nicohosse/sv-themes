@@ -21,9 +21,11 @@ export async function setCookie(value: string, options: CookieOptions, cookies?:
 		path = "/",
 	} = options;
 
+	const expiresDate = expires instanceof Date ? expires : new Date(expires);
+
 	if (cookies) {
 		cookies.set(name, value, {
-			expires: expires instanceof Date ? expires : new Date(expires),
+			expires: expiresDate,
 			sameSite,
 			secure: isSecure,
 			path,
@@ -31,22 +33,22 @@ export async function setCookie(value: string, options: CookieOptions, cookies?:
 		return;
 	}
 
-	if ("cookieStore" in globalThis) {
+	if ("cookieStore" in globalThis && globalThis.cookieStore) {
 		try {
 			await globalThis.cookieStore.set({
 				name,
 				value,
-				expires: expires instanceof Date ? expires.getTime() : expires,
+				expires: expiresDate.getTime(),
 				sameSite,
 				path,
 			});
 		} catch {
-			console.error(`Failed to set cookie with name: ${name}`);
+			throw new Error(`Failed to set cookie with name: ${name}`);
 		}
 	} else {
 		const cookie = [
 			`${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
-			`Expires=${expires instanceof Date ? expires.toUTCString() : new Date(expires).toUTCString()}`,
+			`Expires=${expiresDate.toUTCString()}`,
 			`SameSite=${sameSite}`,
 			`Path=${path}`,
 			isSecure ? "Secure" : "",
@@ -64,15 +66,24 @@ export async function getCookie(name: string, cookies?: Cookies): Promise<string
 
 	if (!BROWSER) return undefined;
 
-	if ("cookieStore" in globalThis) {
+	if ("cookieStore" in globalThis && globalThis.cookieStore) {
 		const cookie = await globalThis.cookieStore.get(name);
 		return cookie?.value;
 	}
 
-	const documentCookies = document.cookie.split("; ");
+	const documentCookies = document.cookie
+		.split(";")
+		.map((cookie) => cookie.trim())
+		.filter(Boolean);
 
 	for (const cookie of documentCookies) {
-		const [key, value] = cookie.split("=");
+		const separatorIndex = cookie.indexOf("=");
+
+		if (separatorIndex === -1) continue;
+
+		const key = cookie.slice(0, separatorIndex);
+		const value = cookie.slice(separatorIndex + 1);
+
 		if (decodeURIComponent(key) === name) return decodeURIComponent(value);
 	}
 
