@@ -1,3 +1,5 @@
+// v8 ignore file
+
 import type { BaseError } from "../errors.js";
 import type { SystemTheme } from "./theme-manager.js";
 

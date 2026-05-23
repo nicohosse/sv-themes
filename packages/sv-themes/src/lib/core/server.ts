@@ -1,4 +1,5 @@
 import type { ThemeManager, ThemeRecord } from "$lib/index.js";
+import { resolveCssColor } from "$lib/utils/resolve-css-color.js";
 
 export const HTML_TAG_REGEX = /<html([^>]*)>/;
 export const HEAD_CLOSE_REGEX = /<\/head>/;
@@ -13,10 +14,7 @@ export function getSSRAttributes<Themes extends ThemeRecord>(themeManager: Theme
 	const resolvedTheme = themeManager.themes[themeManager.resolvedTheme];
 	const attributes: Record<string, string> = {};
 
-	for (const attribute of themeManager.attributes) {
-		const value = attribute === "class" && resolvedTheme.className ? resolvedTheme.className : resolvedTheme.id;
-		attributes[attribute] = value;
-	}
+	for (const attribute of themeManager.attributes) attributes[attribute] = resolvedTheme.className ?? resolvedTheme.id;
 
 	if (themeManager.isThemeForcedAttribute && themeManager.forcedTheme)
 		attributes[themeManager.isThemeForcedAttribute] = "true";
@@ -29,7 +27,47 @@ export function getSSRAttributes<Themes extends ThemeRecord>(themeManager: Theme
 	return attributes;
 }
 
-function normalizeForcedTheme(value?: string) {
+export function getSSRTags<Themes extends ThemeRecord>(themeManager: ThemeManager<Themes>): string[] {
+	const tags: string[] = [];
+
+	if (themeManager.useColorScheme) {
+		const firstTheme = Object.values(themeManager.themes)[0];
+
+		let colorSchemeContent = "light";
+
+		if (firstTheme.type === "light" && themeManager.hasDarkTheme) colorSchemeContent = "light dark";
+		else if (firstTheme.type === "dark" && themeManager.hasLightTheme) colorSchemeContent = "dark light";
+		else if (!themeManager.hasLightTheme && themeManager.hasDarkTheme) colorSchemeContent = "dark";
+
+		tags.push(`<meta name="color-scheme" content="${colorSchemeContent}" />`);
+	}
+
+	if (themeManager.useThemeColor) {
+		const resolvedTheme = themeManager.themes[themeManager.resolvedTheme];
+
+		if (!resolvedTheme.color) return tags;
+
+		const isColorHex = resolvedTheme.color.startsWith("#");
+
+		let resolvedColor = resolvedTheme.color;
+
+		if (!isColorHex) {
+			const computedColor = resolveCssColor(resolvedTheme.color);
+
+			if (computedColor) resolvedColor = computedColor;
+			else {
+				console.error(`The color of theme '${resolvedTheme.id}' couldn't be resolved. Skipping theme-color meta tag.`);
+				return tags;
+			}
+		}
+
+		tags.push(`<meta name="theme-color" content="${resolvedColor}" />`);
+	}
+
+	return tags;
+}
+
+export function normalizeForcedTheme(value?: string) {
 	if (!value) return undefined;
 	if (value === "undefined") return undefined;
 	if (value === "null") return undefined;

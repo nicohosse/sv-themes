@@ -3,7 +3,7 @@
 export { createThemeManager, type ThemeManagerConfig } from "./create-theme-manager.svelte.js";
 
 export {
-	cleanUpThemeClasses,
+	cleanupThemeClasses,
 	registerMediaListener,
 	registerStorageListener,
 	registerThemeManager,

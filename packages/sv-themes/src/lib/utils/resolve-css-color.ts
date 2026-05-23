@@ -17,9 +17,9 @@ export function getResolverElement(): HTMLDivElement | undefined {
 
 const VAR_REGEX = /^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/;
 
-type ResolveCssColorOptions = {
+interface ResolveCssColorOptions {
 	allowFallback?: boolean;
-};
+}
 
 export function resolveCssColor(value: string, options?: ResolveCssColorOptions): string | undefined {
 	const resolverElement = getResolverElement();

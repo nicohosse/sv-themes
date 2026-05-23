@@ -3,6 +3,7 @@ import type { ThemeRecord } from "$lib/index.js";
 import type { CookieOptions } from "$lib/utils/cookie.js";
 import type { ThemeManagerError } from "./errors.js";
 import type { Listener, ThemeManagerEvents } from "./events.js";
+
 export type ThemeAttribute = "class" | `data-${string}`;
 
 export type SystemTheme = "light" | "dark";
@@ -78,7 +79,7 @@ export interface ThemeManager<Themes extends ThemeRecord = ThemeRecord> {
 	readonly on: <Event extends keyof ThemeManagerEvents<Themes>>(
 		event: Event,
 		handler: Listener<ThemeManagerEvents<Themes>[Event]>,
-	) => void;
+	) => () => void;
 
 	[INTERNAL]: Readonly<{
 		setSystemTheme: (systemTheme: SystemTheme) => ResultAsync<void, ThemeManagerError>;

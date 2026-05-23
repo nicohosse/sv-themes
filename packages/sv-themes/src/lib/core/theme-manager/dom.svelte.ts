@@ -3,7 +3,7 @@ import { untrack } from "svelte";
 import { forceThemeRegistry } from "$lib/contexts/force-theme-requests-context.svelte.js";
 import type { ThemeRecord } from "$lib/index.js";
 import { resolveCssColor } from "$lib/utils/resolve-css-color.js";
-import { getPersistedTheme } from "./persistence.js";
+import { getPersistedTheme, persistTheme } from "./persistence.js";
 import { INTERNAL as THEME_MANAGER_INTERNAL, type ThemeManager } from "./theme-manager.js";
 
 export function updateMetaTags<const Themes extends ThemeRecord>(themeManager: ThemeManager<Themes>) {
@@ -20,24 +20,29 @@ export function updateMetaTags<const Themes extends ThemeRecord>(themeManager: T
 			document.head.appendChild(colorSchemeMetaElement);
 		}
 
-		const firstTheme = Object.values(themeManager.themes).at(0);
+		const firstTheme = Object.values(themeManager.themes)[0];
 
-		if (firstTheme) {
-			let colorSchemeContent = "light";
+		let colorSchemeContent = "light";
 
-			if (firstTheme.type === "light" && themeManager.hasDarkTheme) colorSchemeContent = "light dark";
-			else if (firstTheme.type === "dark" && themeManager.hasLightTheme) colorSchemeContent = "dark light";
-			else if (!themeManager.hasLightTheme && themeManager.hasDarkTheme) colorSchemeContent = "dark";
+		if (firstTheme.type === "light" && themeManager.hasDarkTheme) colorSchemeContent = "light dark";
+		else if (firstTheme.type === "dark" && themeManager.hasLightTheme) colorSchemeContent = "dark light";
+		else if (!themeManager.hasLightTheme && themeManager.hasDarkTheme) colorSchemeContent = "dark";
 
-			colorSchemeMetaElement.content = colorSchemeContent;
-		}
+		colorSchemeMetaElement.content = colorSchemeContent;
 	}
 
-	if (!themeManager.useThemeColor || !resolvedTheme.color) return;
+	if (!themeManager.useThemeColor) return;
+
+	let themeColorMetaElement = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+
+	if (!resolvedTheme.color) {
+		themeColorMetaElement?.remove();
+		return;
+	}
+
+	const isColorHex = resolvedTheme.color.startsWith("#");
 
 	let resolvedColor = resolvedTheme.color;
-
-	const isColorHex = resolvedColor.startsWith("#");
 
 	if (!isColorHex) {
 		const computedColor = resolveCssColor(resolvedTheme.color);
@@ -45,13 +50,14 @@ export function updateMetaTags<const Themes extends ThemeRecord>(themeManager: T
 		if (computedColor) resolvedColor = computedColor;
 		else {
 			console.error(
-				`The color of theme '${resolvedTheme.id}' couldn't be resolved. Skipping theme-color meta element.`,
+				`The color of theme '${resolvedTheme.id}' couldn't be resolved. Removing theme-color meta element.`,
 			);
+
+			themeColorMetaElement?.remove();
+
 			return;
 		}
 	}
-
-	let themeColorMetaElement = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
 
 	if (!themeColorMetaElement) {
 		themeColorMetaElement = document.createElement("meta");
@@ -62,13 +68,12 @@ export function updateMetaTags<const Themes extends ThemeRecord>(themeManager: T
 	themeColorMetaElement.content = resolvedColor;
 }
 
-export function cleanUpThemeClasses<const Themes extends ThemeRecord>(themeManager: ThemeManager<Themes>) {
+export function cleanupThemeClasses<const Themes extends ThemeRecord>(themeManager: ThemeManager<Themes>) {
 	if (!BROWSER) return;
 
 	const classesToRemove = themeManager.themeIds
 		.filter((themeId) => themeId !== themeManager.resolvedTheme)
-		.map((themeId) => themeManager.themes[themeId].className)
-		.filter((className) => className !== undefined);
+		.map((themeId) => themeManager.themes[themeId].className ?? (themeId as string));
 
 	for (const className of classesToRemove) document.documentElement.classList.remove(className);
 }
@@ -76,7 +81,7 @@ export function cleanUpThemeClasses<const Themes extends ThemeRecord>(themeManag
 export function updateAttributes<const Themes extends ThemeRecord>(themeManager: ThemeManager<Themes>) {
 	if (!BROWSER) return;
 
-	cleanUpThemeClasses(themeManager);
+	cleanupThemeClasses(themeManager);
 
 	const resolvedTheme = themeManager.themes[themeManager.resolvedTheme];
 
@@ -92,15 +97,15 @@ export function updateAttributes<const Themes extends ThemeRecord>(themeManager:
 		else document.documentElement.removeAttribute(themeManager.isSystemThemeAttribute);
 
 	for (const attribute of themeManager.attributes)
-		if (attribute === "class") {
-			if (resolvedTheme.className) document.documentElement.classList.add(resolvedTheme.className);
-		} else document.documentElement.setAttribute(attribute, themeManager.resolvedTheme.toString());
+		if (attribute === "class") document.documentElement.classList.add(resolvedTheme.className ?? resolvedTheme.id);
+		else document.documentElement.setAttribute(attribute, resolvedTheme.id);
 }
 
 export function registerMediaListener<const Themes extends ThemeRecord>(themeManager: ThemeManager<Themes>) {
 	if (themeManager.systemThemes.kind === "disabled" || !BROWSER) return () => {};
 
 	const media = globalThis.matchMedia("(prefers-color-scheme: dark)");
+
 	const updateSystemTheme = (matches: boolean) =>
 		themeManager[THEME_MANAGER_INTERNAL].setSystemTheme(matches ? "dark" : "light");
 
@@ -135,7 +140,7 @@ export function registerStorageListener<const Themes extends ThemeRecord>(themeM
 
 	if (!useLocalStorage && !useSessionStorage) return () => {};
 
-	const onStorage = (event: StorageEvent) => {
+	const onStorage = async (event: StorageEvent) => {
 		const isThemeKey = event.key === themeManager.storage?.key;
 		if (!isThemeKey) return;
 
@@ -145,14 +150,14 @@ export function registerStorageListener<const Themes extends ThemeRecord>(themeM
 		if ((useLocalStorage && isLocalStorage) || (useSessionStorage && isSessionStorage)) {
 			const storageTheme = event.newValue as keyof Themes | "system";
 
-			if (
-				(storageTheme !== "system" && !themeManager.themeIds.includes(storageTheme)) ||
-				(storageTheme === "system" && themeManager.resolvedUseSystemTheme) ||
-				(storageTheme !== "system" && themeManager.selectedTheme === storageTheme)
-			)
-				return;
+			const result = await themeManager.setTheme(storageTheme);
+			if (result.isOk()) return;
 
-			themeManager.setTheme(storageTheme);
+			console.error(
+				`Invalid theme found in ${isLocalStorage ? "local" : "session"} storage: ${result.error.message}\nAuto-fixing...`,
+			);
+
+			await persistTheme(themeManager, themeManager.selectedTheme);
 		}
 	};
 
@@ -198,8 +203,6 @@ export function registerThemeManager<const Themes extends ThemeRecord>(themeMana
 		themeManager.resolvedTheme;
 		themeManager.resolvedUseSystemTheme;
 
-		currentLoadThemePromise = currentLoadThemePromise.then(async () => {
-			await updateDom(themeManager);
-		});
+		currentLoadThemePromise = currentLoadThemePromise.then(() => updateDom(themeManager));
 	});
 }

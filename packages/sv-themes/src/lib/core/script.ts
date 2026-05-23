@@ -1,4 +1,11 @@
-import type { StorageMethod, StorageOptions, ThemeAttribute, ThemeManager, ThemeRecord } from "$lib/index.js";
+import type {
+	StorageMethod,
+	StorageOptions,
+	SystemTheme,
+	ThemeAttribute,
+	ThemeManager,
+	ThemeRecord,
+} from "$lib/index.js";
 import { STORAGE_METHOD_PRIORITY, type SystemThemes } from "./theme-manager/index.js";
 
 export type ThemeScriptArguments<Themes extends ThemeRecord = ThemeRecord> = Pick<
@@ -68,35 +75,22 @@ export function themeScript<const Themes extends ThemeRecord>(
 			: undefined;
 	};
 
-	const resolveSystemTheme = () => {
-		if (systemThemes.kind === "disabled") return;
-
+	const getSystemTheme = () => {
 		const isDark = globalThis.matchMedia("(prefers-color-scheme: dark)").matches;
-		return isDark ? systemThemes.mappings.dark : systemThemes.mappings.light;
+		return (isDark ? "dark" : "light") as SystemTheme;
 	};
 
-	const persistedTheme = getPersistedTheme();
-
-	const resolvedUseSystemTheme =
-		(useSystemTheme || (forcedTheme ?? persistedTheme) === "system") && systemThemes.kind === "enabled";
-
-	const resolvedTheme =
-		themes[
-			(resolvedUseSystemTheme ? resolveSystemTheme() : (forcedTheme ?? persistedTheme ?? selectedTheme)) ?? initialTheme
-		];
-
-	const allThemeClasses = themeIds.map((id) => themes[id].className ?? id);
-
-	for (const attribute of attributes)
-		if (attribute === "class") {
-			rootElement.classList.remove(...allThemeClasses);
-			rootElement.classList.add(resolvedTheme.className ?? resolvedTheme.id);
-		} else rootElement.setAttribute(attribute, resolvedTheme.id);
-
-	if (useColorScheme) {
-		rootElement.style.colorScheme = resolvedTheme.type;
+	const createOrUpdateColorSchemeMetaTag = () => {
+		if (!useColorScheme) return;
 
 		let colorSchemeMetaElement = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]');
+
+		if (!resolvedTheme) {
+			colorSchemeMetaElement?.remove();
+			return;
+		}
+
+		rootElement.style.colorScheme = resolvedTheme.type;
 
 		if (!colorSchemeMetaElement) {
 			colorSchemeMetaElement = document.createElement("meta");
@@ -104,27 +98,32 @@ export function themeScript<const Themes extends ThemeRecord>(
 			document.head.appendChild(colorSchemeMetaElement);
 		}
 
-		const firstThemeId = themeIds.at(0);
+		const firstThemeId = themeIds[0];
 
-		if (firstThemeId) {
-			const themeValues = Object.values(themes);
-			const hasLightTheme = !!themeValues.find((theme) => theme.type === "light");
-			const hasDarkTheme = !!themeValues.find((theme) => theme.type === "dark");
+		const themeValues = Object.values(themes);
+		const hasLightTheme = !!themeValues.find((theme) => theme.type === "light");
+		const hasDarkTheme = !!themeValues.find((theme) => theme.type === "dark");
 
-			const firstThemeType = themes[firstThemeId].type;
+		const firstThemeType = themes[firstThemeId].type;
 
-			let colorSchemeContent = "light";
+		let colorSchemeContent = "light";
 
-			if (firstThemeType === "light" && hasDarkTheme) colorSchemeContent = "light dark";
-			else if (firstThemeType === "dark" && hasLightTheme) colorSchemeContent = "dark light";
-			else if (!hasLightTheme && hasDarkTheme) colorSchemeContent = "dark";
+		if (firstThemeType === "light" && hasDarkTheme) colorSchemeContent = "light dark";
+		else if (firstThemeType === "dark" && hasLightTheme) colorSchemeContent = "dark light";
+		else if (!hasLightTheme && hasDarkTheme) colorSchemeContent = "dark";
 
-			colorSchemeMetaElement.content = colorSchemeContent;
-		}
-	}
+		colorSchemeMetaElement.content = colorSchemeContent;
+	};
 
-	if (useThemeColor && resolvedTheme.color) {
+	const createOrUpdateThemeColorMetaTag = () => {
+		if (!useThemeColor) return;
+
 		let themeColorMetaElement = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+
+		if (!resolvedTheme?.color) {
+			themeColorMetaElement?.remove();
+			return;
+		}
 
 		if (!themeColorMetaElement) {
 			themeColorMetaElement = document.createElement("meta");
@@ -132,8 +131,62 @@ export function themeScript<const Themes extends ThemeRecord>(
 			document.head.appendChild(themeColorMetaElement);
 		}
 
-		themeColorMetaElement.setAttribute("content", resolvedTheme.color);
-	}
+		let resolvedColor: string | undefined;
+
+		const isColorHex = resolvedTheme.color.startsWith("#");
+
+		if (!isColorHex) {
+			const resolverElement = document.createElement("div");
+			resolverElement.style.display = "none";
+
+			document.body.appendChild(resolverElement);
+
+			const normalizeColor = (color: string): string => {
+				resolverElement.style.color = color;
+
+				return getComputedStyle(resolverElement).color;
+			};
+
+			const VAR_REGEX = /^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/;
+
+			const resolveCssColor = (value: string): string | undefined => {
+				const varMatch = VAR_REGEX.exec(value);
+
+				if (!varMatch) return normalizeColor(value);
+
+				const [, variableName, fallback] = varMatch;
+
+				const variableValue = getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
+
+				if (!variableValue) {
+					if (fallback) return normalizeColor(fallback);
+					return undefined;
+				}
+
+				return normalizeColor(variableValue);
+			};
+
+			const computedColor = resolveCssColor(resolvedTheme.color);
+
+			if (computedColor) resolvedColor = computedColor;
+		} else resolvedColor = resolvedTheme.color;
+
+		if (resolvedColor) themeColorMetaElement.content = resolvedColor;
+		else themeColorMetaElement.remove();
+	};
+
+	const persistedTheme = getPersistedTheme();
+
+	const resolvedUseSystemTheme =
+		systemThemes.kind === "enabled" &&
+		((!forcedTheme && useSystemTheme) || (forcedTheme ?? persistedTheme) === "system");
+
+	const resolvedTheme =
+		themes[
+			(resolvedUseSystemTheme && systemThemes.kind === "enabled"
+				? systemThemes.mappings[getSystemTheme()]
+				: ((forcedTheme === "system" ? undefined : forcedTheme) ?? persistedTheme ?? selectedTheme)) ?? initialTheme
+		];
 
 	if (isThemeForcedAttribute)
 		if (forcedTheme) rootElement.setAttribute(isThemeForcedAttribute, "true");
@@ -142,6 +195,22 @@ export function themeScript<const Themes extends ThemeRecord>(
 	if (isSystemThemeAttribute)
 		if (useSystemTheme) rootElement.setAttribute(isSystemThemeAttribute, "true");
 		else rootElement.removeAttribute(isSystemThemeAttribute);
+
+	createOrUpdateColorSchemeMetaTag();
+	createOrUpdateThemeColorMetaTag();
+
+	if (!resolvedTheme) {
+		if (document.currentScript) document.currentScript.remove();
+		return;
+	}
+
+	const allThemeClasses = themeIds.map((id) => themes[id].className ?? id);
+
+	for (const attribute of attributes)
+		if (attribute === "class") {
+			rootElement.classList.remove(...allThemeClasses);
+			rootElement.classList.add(resolvedTheme.className ?? resolvedTheme.id);
+		} else rootElement.setAttribute(attribute, resolvedTheme.id);
 
 	if (document.currentScript) document.currentScript.remove();
 }

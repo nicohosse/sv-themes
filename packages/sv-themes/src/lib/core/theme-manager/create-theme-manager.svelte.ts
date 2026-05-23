@@ -74,9 +74,9 @@ export function createThemeManager<const Themes extends ThemeRecord>(
 	);
 
 	const resolvedTheme = $derived(
-		resolvedUseSystemTheme && resolvedConfig.systemThemes.kind === "enabled" && state.systemTheme
-			? resolvedConfig.systemThemes.mappings[state.systemTheme]
-			: (state.forcedTheme ?? state.selectedTheme),
+		resolvedUseSystemTheme && resolvedConfig.systemThemes.kind === "enabled"
+			? resolvedConfig.systemThemes.mappings[state.systemTheme ?? "light"]
+			: ((state.forcedTheme === "system" ? undefined : state.forcedTheme) ?? state.selectedTheme),
 	);
 
 	const setUseSystemTheme = (useSystemTheme: boolean): Result<void, ThemeManagerError> => {
@@ -84,6 +84,7 @@ export function createThemeManager<const Themes extends ThemeRecord>(
 			return err(ThemeManagerError.systemThemesDisabled);
 
 		state.useSystemTheme = useSystemTheme;
+
 		return ok();
 	};
 
@@ -101,42 +102,51 @@ export function createThemeManager<const Themes extends ThemeRecord>(
 
 		if (from === to) return okAsync();
 
-		return ResultAsync.fromPromise(
-			(async () => {
-				let cancelled = false;
+		const validationResult =
+			to === "system"
+				? resolvedConfig.systemThemes.kind === "enabled"
+					? ok()
+					: err(ThemeManagerError.systemThemesDisabled)
+				: validateRequestedTheme(themeManager.themes, to);
 
-				if (themeManager[THEME_MANAGER_INTERNAL].hasListeners("beforeChange")) {
-					const beforeEvent: BeforeThemeChangeEvent<Themes> = {
-						from,
-						to,
-						preventDefault: () => {
-							cancelled = true;
-						},
-						get defaultPrevented() {
-							return cancelled;
-						},
-					};
+		return validationResult.asyncAndThen(() =>
+			ResultAsync.fromPromise(
+				(async () => {
+					let cancelled = false;
 
-					await themeManager[THEME_MANAGER_INTERNAL].emit("beforeChange", beforeEvent);
+					if (themeManager[THEME_MANAGER_INTERNAL].hasListeners("beforeChange")) {
+						const beforeEvent: BeforeThemeChangeEvent<Themes> = {
+							from,
+							to,
+							preventDefault: () => {
+								cancelled = true;
+							},
+							get defaultPrevented() {
+								return cancelled;
+							},
+						};
 
-					if (cancelled) throw ThemeManagerError.cancelled;
-				}
+						await themeManager[THEME_MANAGER_INTERNAL].emit("beforeChange", beforeEvent);
 
-				const commitResult = commit();
-				if (commitResult.isErr()) throw commitResult.error;
+						if (cancelled) throw ThemeManagerError.cancelled;
+					}
 
-				if (shouldPersist) await persistTheme(themeManager, to);
+					const commitResult = commit();
+					if (commitResult.isErr()) throw commitResult.error;
 
-				if (themeManager[THEME_MANAGER_INTERNAL].hasListeners("afterChange")) {
-					const afterEvent: AfterThemeChangeEvent<Themes> = {
-						from,
-						to,
-					};
+					if (shouldPersist) await persistTheme(themeManager, to);
 
-					await themeManager[THEME_MANAGER_INTERNAL].emit("afterChange", afterEvent);
-				}
-			})(),
-			(error) => error as ThemeManagerError,
+					if (themeManager[THEME_MANAGER_INTERNAL].hasListeners("afterChange")) {
+						const afterEvent: AfterThemeChangeEvent<Themes> = {
+							from,
+							to,
+						};
+
+						await themeManager[THEME_MANAGER_INTERNAL].emit("afterChange", afterEvent);
+					}
+				})(),
+				(error) => error as ThemeManagerError,
+			),
 		);
 	};
 
@@ -311,8 +321,5 @@ export function createThemeManager<const Themes extends ThemeRecord>(
 		},
 	};
 
-	Object.freeze(themeManager.systemThemes);
-	Object.freeze(themeManager[THEME_MANAGER_INTERNAL]);
-
-	return ok(Object.freeze(themeManager));
+	return ok(themeManager);
 }

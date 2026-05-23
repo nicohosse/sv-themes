@@ -6,6 +6,7 @@ import {
 	CLASS_ATTRIBUTE_REGEX,
 	FORCED_THEME_META_REGEX,
 	getSSRAttributes,
+	getSSRTags,
 	HEAD_CLOSE_REGEX,
 	HTML_TAG_REGEX,
 	resolveForcedTheme,
@@ -27,6 +28,7 @@ export function createThemeHandle<Themes extends ThemeRecord>(themeManager: Them
 		let cachedData: {
 			ssrAttributes: ReturnType<typeof getSSRAttributes>;
 			scriptTag: string;
+			ssrTags: string[];
 		} | null = null;
 
 		return await resolve(event, {
@@ -39,6 +41,7 @@ export function createThemeHandle<Themes extends ThemeRecord>(themeManager: Them
 					flushSync();
 
 					const ssrAttributes = getSSRAttributes(themeManager);
+					const ssrTags = getSSRTags(themeManager);
 
 					const scriptContent = getThemeScript({ ...themeManager });
 					const scriptTag = `<script${cspNonce ? ` nonce="${cspNonce}"` : ""}>${scriptContent}</script>`;
@@ -46,6 +49,7 @@ export function createThemeHandle<Themes extends ThemeRecord>(themeManager: Them
 					cachedData = {
 						ssrAttributes,
 						scriptTag,
+						ssrTags,
 					};
 				}
 
@@ -68,7 +72,7 @@ export function createThemeHandle<Themes extends ThemeRecord>(themeManager: Them
 
 						return `<html${updatedAttributes}>`;
 					})
-					.replace(HEAD_CLOSE_REGEX, `\n${cachedData.scriptTag}</head>`)
+					.replace(HEAD_CLOSE_REGEX, `\n${cachedData.scriptTag}\n${cachedData.ssrTags}</head>`)
 					.replaceAll(FORCED_THEME_META_REGEX, "");
 			},
 		});

@@ -1,9 +1,9 @@
 import "@testing-library/jest-dom/vitest";
 import { format } from "@vitest/pretty-format";
 import type { Result } from "neverthrow";
-import { afterEach, beforeEach, expect, vi } from "vitest";
+import { afterEach, expect, vi } from "vitest";
 import type { LibError } from "$lib/index.js";
-import { resetTestEnv, testEnv } from "./test-environment.js";
+import { resetTestEnv } from "./test-environment.js";
 
 export function expectOk<T, E>(result: Result<T, E>): T {
 	expect(result).toBeOk();
@@ -143,10 +143,6 @@ function clearDocumentCookies() {
 	});
 }
 
-beforeEach(() => {
-	testEnv().browser(true).cookieStore().apply();
-});
-
 afterEach(() => {
 	const root = document.documentElement;
 
@@ -156,11 +152,12 @@ afterEach(() => {
 
 	document.head.replaceChildren();
 
-	globalThis.localStorage.clear();
-	globalThis.sessionStorage.clear();
-
 	vi.clearAllMocks();
+	vi.clearAllTimers();
 
 	clearDocumentCookies();
 	resetTestEnv();
+
+	globalThis.localStorage.clear();
+	globalThis.sessionStorage.clear();
 });

@@ -38,8 +38,6 @@ vi.mock("esm-env", () => ({
 	DEV: true,
 }));
 
-vi.stubGlobal("cookieStore", state.cookieStore);
-
 vi.stubGlobal("matchMedia", (query: string) => ({
 	matches: query === "(prefers-color-scheme: dark)" ? state.systemTheme === "dark" : false,
 	media: query,
@@ -50,6 +48,13 @@ vi.stubGlobal("matchMedia", (query: string) => ({
 	removeEventListener: vi.fn(),
 	dispatchEvent: vi.fn(),
 }));
+
+Object.defineProperty(globalThis, "cookieStore", {
+	get() {
+		return state.cookieStore;
+	},
+	configurable: true,
+});
 
 export function testEnv(): Builder<true> {
 	let browser = state.browser;

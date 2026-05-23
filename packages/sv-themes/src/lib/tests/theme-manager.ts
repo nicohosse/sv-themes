@@ -1,12 +1,6 @@
 // v8 ignore file
 
-import {
-	createThemeManager as actualCreateThemeManager,
-	DEFAULT_THEMES,
-	type ThemeManagerConfig,
-	type ThemeManagerError,
-} from "$lib/index.js";
-import { expectOk } from "./setup.js";
+import { DEFAULT_THEMES, type ThemeManagerConfig, type ThemeManagerError } from "$lib/index.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -36,21 +30,21 @@ function deepMerge<T>(base: T, override?: DeepPartial<T>): T {
 	return result as T;
 }
 
-export const MOCK_THEME_MANAGER_CONFIG: ThemeManagerConfig = {
+export const MOCK_THEME_MANAGER_CONFIG: ThemeManagerConfig<typeof DEFAULT_THEMES> = {
 	themes: DEFAULT_THEMES,
 	initialTheme: "light",
 	systemThemes: {
 		kind: "enabled",
 	},
-	useSystemTheme: true,
-};
+} as const;
 
-export function createThemeManagerConfig(overrides?: DeepPartial<ThemeManagerConfig>): ThemeManagerConfig {
-	return deepMerge(MOCK_THEME_MANAGER_CONFIG, overrides);
-}
-
-export function createThemeManager(overrides?: DeepPartial<ThemeManagerConfig>) {
-	return expectOk(actualCreateThemeManager(createThemeManagerConfig(overrides)));
+export function createMockThemeManagerConfig(
+	overrides?: DeepPartial<ThemeManagerConfig>,
+	deepMerging = true,
+): ThemeManagerConfig {
+	return deepMerging
+		? deepMerge(MOCK_THEME_MANAGER_CONFIG, overrides)
+		: ({ ...MOCK_THEME_MANAGER_CONFIG, ...overrides } as ThemeManagerConfig);
 }
 
 export const INVALID_THEME_MANAGER_CONFIG_CASES: {

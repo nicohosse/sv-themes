@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_THEMES, type ThemeRecord } from "$lib/index.js";
+import { createThemes, DEFAULT_THEMES } from "$lib/index.js";
+import { expectOk } from "$lib/tests/setup.js";
 import { testEnv } from "$lib/tests/test-environment.js";
 import { setCookie } from "$lib/utils/cookie.js";
 import { getThemeScript, safeSerializeArgument, type ThemeScriptArguments, themeScript } from "./script.js";
@@ -9,14 +10,47 @@ describe("themeScript", () => {
 	const themes = DEFAULT_THEMES;
 	const themeIds = Object.keys(DEFAULT_THEMES) as (keyof typeof DEFAULT_THEMES)[];
 	const systemThemes: SystemThemes<typeof themes> = {
-		kind: "enabled",
-		mappings: { light: "light", dark: "dark" },
+		kind: "disabled",
 	};
 
 	it("applies the initial theme when no storage or forced theme is present", () => {
 		themeScript(themes, themeIds, systemThemes, false, "light", "light", ["class"], STORAGE_METHOD_PRIORITY);
 
 		expect(document.documentElement.classList.contains("light")).toBe(true);
+	});
+
+	it("doesnt add attribute and removes meta tags and color scheme if resolvedTheme is invalid", () => {
+		let themeColorMetaElement: HTMLMetaElement | null = document.createElement("meta");
+		themeColorMetaElement.name = "theme-color";
+		document.head.appendChild(themeColorMetaElement);
+
+		let colorSchemeMetaElement: HTMLMetaElement | null = document.createElement("meta");
+		colorSchemeMetaElement.name = "color-scheme";
+		document.head.appendChild(colorSchemeMetaElement);
+
+		themeScript(
+			themes,
+			themeIds,
+			systemThemes,
+			false,
+			"missing",
+			"missing",
+			["class", "data-theme"],
+			STORAGE_METHOD_PRIORITY,
+			undefined,
+			true,
+			true,
+		);
+
+		expect(document.documentElement.classList.contains("missing")).toBe(false);
+		expect(document.documentElement.getAttribute("data-theme")).toBeNull();
+		expect(document.documentElement.style.colorScheme).toBe("");
+
+		themeColorMetaElement = document.querySelector('meta[name="theme-color"]');
+		expect(themeColorMetaElement).toBeNull();
+
+		colorSchemeMetaElement = document.querySelector('meta[name="color-scheme"]');
+		expect(colorSchemeMetaElement).toBeNull();
 	});
 
 	it("retrieves theme from localStorage", () => {
@@ -114,13 +148,18 @@ describe("themeScript", () => {
 	it("handles system theme resolution when enabled", () => {
 		testEnv().systemTheme("dark").apply();
 
+		const systemThemes: SystemThemes<typeof themes> = {
+			kind: "enabled",
+			mappings: { light: "light", dark: "dark" },
+		};
+
 		themeScript(themes, themeIds, systemThemes, true, "light", "light", ["class"], STORAGE_METHOD_PRIORITY);
 
 		expect(document.documentElement.classList.contains("dark")).toBe(true);
 	});
 
 	it("ignores system theme if disabled", () => {
-		themeScript(themes, themeIds, { kind: "disabled" }, true, "dark", "dark", ["class"], STORAGE_METHOD_PRIORITY);
+		themeScript(themes, themeIds, systemThemes, true, "dark", "dark", ["class"], STORAGE_METHOD_PRIORITY);
 
 		expect(document.documentElement.classList.contains("dark")).toBe(true);
 	});
@@ -131,7 +170,7 @@ describe("themeScript", () => {
 		expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
 	});
 
-	it("sets color-scheme style and sets meta tag to light dark when dark and light themes exist", () => {
+	it("sets color-scheme style if enabled", () => {
 		themeScript(
 			themes,
 			themeIds,
@@ -146,16 +185,38 @@ describe("themeScript", () => {
 		);
 
 		expect(document.documentElement.style.colorScheme).toBe("light");
+	});
+
+	it("creates or updates the color-scheme meta tag with light dark content if enabled", () => {
+		themeScript(
+			themes,
+			themeIds,
+			systemThemes,
+			false,
+			"light",
+			"light",
+			["class"],
+			STORAGE_METHOD_PRIORITY,
+			undefined,
+			true,
+		);
 
 		const meta = document.querySelector('meta[name="color-scheme"]');
 
 		expect(meta?.getAttribute("content")).toBe("light dark");
 	});
 
-	it("sets meta tag to dark light when first theme is dark", () => {
+	it("creates or updates the color-scheme meta tag with dark light content if enabled", () => {
+		const themes = expectOk(
+			createThemes([
+				{ id: "dark", type: "dark" },
+				{ id: "light", type: "light" },
+			]),
+		);
+
 		themeScript(
 			themes,
-			["dark", "light"],
+			Object.keys(themes),
 			systemThemes,
 			false,
 			"dark",
@@ -171,14 +232,33 @@ describe("themeScript", () => {
 		expect(meta?.getAttribute("content")).toBe("dark light");
 	});
 
-	it("sets meta tag to dark when no light themes exist", () => {
-		const darkOnlyThemes: ThemeRecord = {
-			dark: { id: "dark", type: "dark" },
-		};
+	it("creates or updates the color-scheme meta tag with light content when there is no dark theme if enabled", () => {
+		const lightOnlyThemes = expectOk(createThemes([{ id: "light", type: "light" }]));
+
+		themeScript(
+			lightOnlyThemes,
+			Object.keys(lightOnlyThemes),
+			systemThemes,
+			false,
+			"light",
+			"light",
+			["class"],
+			STORAGE_METHOD_PRIORITY,
+			undefined,
+			true,
+		);
+
+		const meta = document.querySelector('meta[name="color-scheme"]');
+
+		expect(meta?.getAttribute("content")).toBe("light");
+	});
+
+	it("creates or updates the color-scheme meta tag with dark content when there is no light theme if enabled", () => {
+		const darkOnlyThemes = expectOk(createThemes([{ id: "dark", type: "dark" }]));
 
 		themeScript(
 			darkOnlyThemes,
-			["dark"],
+			Object.keys(darkOnlyThemes),
 			systemThemes,
 			false,
 			"dark",
@@ -194,7 +274,7 @@ describe("themeScript", () => {
 		expect(meta?.getAttribute("content")).toBe("dark");
 	});
 
-	it("sets theme-color meta tag when useThemeColor is true", () => {
+	it("creates or updates theme-color using hex format when useThemeColor is true", () => {
 		themeScript(
 			themes,
 			themeIds,
@@ -212,6 +292,80 @@ describe("themeScript", () => {
 		const meta = document.querySelector('meta[name="theme-color"]');
 
 		expect(meta?.getAttribute("content")).toBe("#000");
+	});
+
+	it("creates or updates non-hex theme-color if color can be resolved when useThemeColor is true", () => {
+		const themes = expectOk(createThemes([{ id: "light", type: "light", color: "white" }]));
+
+		themeScript(
+			themes,
+			Object.keys(themes),
+			systemThemes,
+			false,
+			"light",
+			"light",
+			["class"],
+			STORAGE_METHOD_PRIORITY,
+			undefined,
+			false,
+			true,
+		);
+
+		const meta = document.querySelector('meta[name="theme-color"]');
+
+		expect(meta?.getAttribute("content")).toBe("rgb(255, 255, 255)");
+	});
+
+	it("removes theme-color meta tag if theme doesnt have a color assigned", () => {
+		const themes = expectOk(createThemes([{ id: "nature", type: "light" }]));
+
+		let themeColorMetaElement: HTMLMetaElement | null = document.createElement("meta");
+		themeColorMetaElement.name = "theme-color";
+		document.head.appendChild(themeColorMetaElement);
+
+		themeScript(
+			themes,
+			Object.keys(themes),
+			systemThemes,
+			false,
+			"nature",
+			"nature",
+			["class"],
+			STORAGE_METHOD_PRIORITY,
+			undefined,
+			false,
+			true,
+		);
+
+		themeColorMetaElement = document.querySelector('meta[name="theme-color"]');
+
+		expect(themeColorMetaElement).toBeNull();
+	});
+
+	it("removes meta tag if non-hex theme-color cannot be resolved", () => {
+		const themes = expectOk(createThemes([{ id: "light", type: "light", color: "var(--missing)" }]));
+
+		let themeColorMetaElement: HTMLMetaElement | null = document.createElement("meta");
+		themeColorMetaElement.name = "theme-color";
+		document.head.appendChild(themeColorMetaElement);
+
+		themeScript(
+			themes,
+			Object.keys(themes),
+			systemThemes,
+			false,
+			"light",
+			"light",
+			["class"],
+			STORAGE_METHOD_PRIORITY,
+			undefined,
+			false,
+			true,
+		);
+
+		themeColorMetaElement = document.querySelector('meta[name="theme-color"]');
+
+		expect(themeColorMetaElement).toBeNull();
 	});
 
 	it("handles forced theme attribute", () => {
@@ -253,6 +407,11 @@ describe("themeScript", () => {
 	});
 
 	it("handles system theme attribute", () => {
+		const systemThemes: SystemThemes<typeof themes> = {
+			kind: "enabled",
+			mappings: { light: "light", dark: "dark" },
+		};
+
 		const attribute = "data-is-system-theme";
 
 		themeScript(

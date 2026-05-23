@@ -20,9 +20,9 @@ export type ResolvedThemeManagerConfig<Themes extends ThemeRecord> = Omit<
 	systemThemes: ResolvedSystemThemesConfig<Themes>;
 } & Required<Pick<ThemeManagerConfig<Themes>, "attributes">>;
 
-function resolveSystemThemes<Themes extends ThemeRecord>(
+export function resolveSystemThemes<Themes extends ThemeRecord>(
 	config: ThemeManagerConfig<Themes>,
-): Result<ResolvedSystemThemesConfig<Themes>, ThemeManagerError[]> {
+): Result<ResolvedSystemThemesConfig<Themes>, ThemeManagerError> {
 	const systemThemes = config.systemThemes ?? { kind: "disabled" };
 
 	if (systemThemes.kind === "disabled") return ok(systemThemes);
@@ -32,8 +32,11 @@ function resolveSystemThemes<Themes extends ThemeRecord>(
 	const lightSystemTheme = systemThemes.mappings?.light ?? themeValues.find((theme) => theme.type === "light")?.id;
 	const darkSystemTheme = systemThemes.mappings?.dark ?? themeValues.find((theme) => theme.type === "dark")?.id;
 
-	if (!lightSystemTheme) return err([ThemeManagerError.systemThemeUnassigned("light")]);
-	if (!darkSystemTheme) return err([ThemeManagerError.systemThemeUnassigned("dark")]);
+	if (!lightSystemTheme || !(lightSystemTheme in config.themes))
+		return err(ThemeManagerError.systemThemeUnassigned("light"));
+
+	if (!darkSystemTheme || !(darkSystemTheme in config.themes))
+		return err(ThemeManagerError.systemThemeUnassigned("dark"));
 
 	return ok({
 		kind: "enabled",
@@ -46,7 +49,7 @@ function resolveSystemThemes<Themes extends ThemeRecord>(
 
 export function resolveThemeManagerConfig<const Themes extends ThemeRecord>(
 	config: ThemeManagerConfig<Themes>,
-): Result<ResolvedThemeManagerConfig<Themes>, ThemeManagerError[]> {
+): Result<ResolvedThemeManagerConfig<Themes>, ThemeManagerError> {
 	const resolvedSystemThemeResult = resolveSystemThemes(config);
 	if (resolvedSystemThemeResult.isErr()) return err(resolvedSystemThemeResult.error);
 
@@ -59,12 +62,10 @@ export function resolveThemeManagerConfig<const Themes extends ThemeRecord>(
 		isForcedThemeLocked: config.isForcedThemeLocked,
 		useColorScheme: config.useColorScheme ?? true,
 		useThemeColor: config.useThemeColor ?? true,
-		// v8 ignore start
 		isThemeForcedAttribute: "isThemeForcedAttribute" in config ? config.isThemeForcedAttribute : "data-is-theme-forced",
 		isSystemThemeAttribute: "isSystemThemeAttribute" in config ? config.isSystemThemeAttribute : "data-is-system-theme",
-		// v8 ignore stop
-		storage: config.storage ?? DEFAULT_STORAGE_HYBRID,
+		storage: "storage" in config ? config.storage : DEFAULT_STORAGE_HYBRID,
 		enableTabSync: config.enableTabSync ?? true,
-		attributes: config.attributes ?? ["class", "data-theme"],
+		attributes: "attributes" in config ? (config.attributes ?? []) : ["class", "data-theme"],
 	} satisfies ResolvedThemeManagerConfig<Themes>);
 }
