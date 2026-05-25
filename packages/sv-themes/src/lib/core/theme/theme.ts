@@ -18,10 +18,12 @@ export function createThemes<const Themes extends readonly Theme[]>(
 
 	for (const theme of themes)
 		if (seen.has(theme.id)) duplicates.push(theme.id);
-		else seen.add(theme.id);
+		else {
+			seen.add(theme.id);
+			if (theme.id === "system" || !theme.id.trim()) return err([ThemeError.invalidId(theme.id)]);
+		}
 
 	if (seen.size === 0) return err([ThemeError.noThemes]);
-
 	if (duplicates.length > 0) return err(duplicates.map((duplicateTheme) => ThemeError.duplicateTheme(duplicateTheme)));
 
 	return ok(Object.fromEntries(themes.map((theme) => [theme.id, theme])) as ThemeRecord<Themes[number]["id"]>);

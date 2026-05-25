@@ -1,6 +1,7 @@
 // v8 ignore file
 
-import { DEFAULT_THEMES, type ThemeManagerConfig, type ThemeManagerError } from "$lib/index.js";
+import { createThemes, DEFAULT_THEMES, type ThemeManagerConfig, type ThemeManagerError } from "$lib/index.js";
+import { expectOk } from "./setup.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -53,27 +54,14 @@ export const INVALID_THEME_MANAGER_CONFIG_CASES: {
 	expectedError: ThemeManagerError["id"];
 }[] = [
 	{
-		name: "Empty themes list",
-		config: { themes: {}, initialTheme: "light" },
-		expectedError: "NoThemes",
-	},
-	{
 		name: "Initial theme ID not in record",
 		config: { themes: DEFAULT_THEMES, initialTheme: "missing" },
 		expectedError: "ThemeNotFound",
 	},
 	{
-		name: "Theme using reserved 'system' ID",
-		config: {
-			themes: { system: { id: "system", type: "light" } },
-			initialTheme: "system",
-		},
-		expectedError: "ThemeInvalidId",
-	},
-	{
 		name: "System themes enabled but missing 'light' type theme",
 		config: {
-			themes: { dark: { id: "dark", type: "dark" } },
+			themes: expectOk(createThemes([{ id: "dark", type: "dark" }])),
 			initialTheme: "dark",
 			systemThemes: { kind: "enabled" },
 		},
@@ -82,7 +70,7 @@ export const INVALID_THEME_MANAGER_CONFIG_CASES: {
 	{
 		name: "System themes enabled but missing 'dark' type theme",
 		config: {
-			themes: { light: { id: "light", type: "light" } },
+			themes: expectOk(createThemes([{ id: "light", type: "light" }])),
 			initialTheme: "light",
 			systemThemes: { kind: "enabled" },
 		},

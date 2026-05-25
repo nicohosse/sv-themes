@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { expectOk } from "$lib/tests/setup.js";
 import { createMockThemeManagerConfig, MOCK_THEME_MANAGER_CONFIG } from "$lib/tests/theme-manager.js";
 import { createThemes } from "../theme/theme.js";
-import type { ThemeManagerConfig } from "./create-theme-manager.svelte.js";
 import { ThemeManagerError } from "./errors.js";
 import { resolveSystemThemes, resolveThemeManagerConfig } from "./resolver.js";
 

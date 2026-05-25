@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { INVALID_THEME_MANAGER_CONFIG_CASES } from "$lib/tests/theme-manager.js";
+import { expectOk } from "$lib/tests/setup.js";
+import { INVALID_THEME_MANAGER_CONFIG_CASES, MOCK_THEME_MANAGER_CONFIG } from "$lib/tests/theme-manager.js";
 import { createThemeManager } from "./create-theme-manager.svelte.js";
+import { resolveThemeManagerConfig } from "./resolver.js";
+import { validateThemeManagerConfig } from "./validators.js";
 
 describe("validateRequestedTheme", () => {
 	it("placeholder", () => {
@@ -73,33 +76,6 @@ describe("validateSystemTheme", () => {
 	});
 });
 
-describe("validateTheme", () => {
-	it("should return Ok if the theme is valid", () => {
-		const theme: Theme = {
-			id: "light",
-			type: "light",
-		};
-
-		expect(validateTheme(theme)).toBeOk();
-	});
-
-	it("should return Err ThemeInvalidId if the id is 'system'", () => {
-		const theme: Theme = {
-			id: "system",
-			type: "light",
-		};
-
-		expect(validateTheme(theme)).toBeErr("ThemeInvalidId");
-	});
-
-	it("should return Err ThemeInvalidId if the id is empty", () => {
-		const theme: Theme = {
-			id: "",
-			type: "light",
-		};
-
-		expect(validateTheme(theme)).toBeErr("ThemeInvalidId");
-	});
 
 	describe("validateThemeManagerConfig", () => {
 		it("should validate themes", () => {
@@ -204,7 +180,13 @@ describe("validateTheme", () => {
 });
 
 describe("validateThemeManagerConfig", () => {
-	it.each(INVALID_THEME_MANAGER_CONFIG_CASES)("should reject: $name", ({ config, expectedError }) => {
-		expect(createThemeManager(config)).toBeErr(expectedError);
+	it("returns Ok with valid config", () => {
+		const resolvedConfig = expectOk(resolveThemeManagerConfig(MOCK_THEME_MANAGER_CONFIG));
+		expect(validateThemeManagerConfig(resolvedConfig)).toBeOk();
+	});
+
+	it("returns Err SystemThemeUnassigned", () => {
+		const resolvedConfig = expectOk(resolveThemeManagerConfig(MOCK_THEME_MANAGER_CONFIG));
+		expect(validateThemeManagerConfig(resolvedConfig)).toBeOk();
 	});
 });

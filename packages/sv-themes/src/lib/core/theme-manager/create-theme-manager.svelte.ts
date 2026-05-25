@@ -51,7 +51,7 @@ export function createThemeManager<const Themes extends ThemeRecord>(
 	config: ThemeManagerConfig<Themes>,
 ): Result<ThemeManager<Themes>, ThemeManagerError[]> {
 	const resolveResult = resolveThemeManagerConfig(config);
-	if (resolveResult.isErr()) return err(resolveResult.error);
+	if (resolveResult.isErr()) return err([resolveResult.error]);
 
 	const resolvedConfig = resolveResult.value;
 

@@ -29,4 +29,12 @@ describe("createThemes", () => {
 			]),
 		).toBeErr("DuplicateTheme");
 	});
+
+	it("should return Err InvalidId if the id is 'system'", () => {
+		expect(createThemes([{ id: "system", type: "light" }])).toBeErr("InvalidId");
+	});
+
+	it("should return Err InvalidId if the id is empty", () => {
+		expect(createThemes([{ id: "", type: "light" }])).toBeErr("InvalidId");
+	});
 });

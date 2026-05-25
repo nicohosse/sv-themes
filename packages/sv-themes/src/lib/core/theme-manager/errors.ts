@@ -3,12 +3,8 @@
 import type { BaseError } from "../errors.js";
 import type { SystemTheme } from "./theme-manager.js";
 
-export type ThemeManagerError = BaseError &
-	(
-		| { id: "NoThemes" }
-		| { id: "DuplicateTheme"; theme: string }
+export type ThemeManagerError = BaseError & { namespace: "ThemeManager" } & (
 		| { id: "ThemeNotFound"; theme: string }
-		| { id: "ThemeInvalidId"; theme: string }
 		| { id: "SystemThemeUnassigned"; systemTheme: SystemTheme }
 		| { id: "SystemThemesDisabled" }
 		| { id: "SystemThemeInvalidType"; systemTheme: SystemTheme }
@@ -18,37 +14,18 @@ export type ThemeManagerError = BaseError &
 	);
 
 export const ThemeManagerError = {
-	noThemes: {
-		id: "NoThemes",
-		message: "At least one theme is required.",
-	} as const satisfies ThemeManagerError,
-
-	duplicateTheme(theme: string): ThemeManagerError {
-		return {
-			id: "DuplicateTheme",
-			theme,
-			message: `Duplicate theme: ${theme}`,
-		};
-	},
-
 	themeNotFound(theme: string): ThemeManagerError {
 		return {
+			namespace: "ThemeManager",
 			id: "ThemeNotFound",
 			theme,
 			message: `Theme '${theme}' not found.`,
 		};
 	},
 
-	themeInvalidId(theme: string): ThemeManagerError {
-		return {
-			id: "ThemeInvalidId",
-			theme,
-			message: `Theme id '${theme}' is invalid. The id 'system' is reserved.`,
-		};
-	},
-
 	systemThemeUnassigned(systemTheme: SystemTheme): ThemeManagerError {
 		return {
+			namespace: "ThemeManager",
 			id: "SystemThemeUnassigned",
 			systemTheme,
 			message: `System theme '${systemTheme}' has no valid assigned theme.`,
@@ -56,12 +33,14 @@ export const ThemeManagerError = {
 	},
 
 	systemThemesDisabled: {
+		namespace: "ThemeManager",
 		id: "SystemThemesDisabled",
 		message: "System themes are disabled.",
 	} as const satisfies ThemeManagerError,
 
 	systemThemeInvalidType(systemTheme: SystemTheme): ThemeManagerError {
 		return {
+			namespace: "ThemeManager",
 			id: "SystemThemeInvalidType",
 			systemTheme,
 			message: `System theme '${systemTheme}' needs to be assigned to a theme with type '${systemTheme}'.`,
@@ -69,16 +48,19 @@ export const ThemeManagerError = {
 	},
 
 	forcedThemeLocked: {
+		namespace: "ThemeManager",
 		id: "ForcedThemeLocked",
 		message: "Forced theme is locked.",
 	} as const satisfies ThemeManagerError,
 
 	tabSyncStorageMethodsIncompatible: {
+		namespace: "ThemeManager",
 		id: "TabSyncStorageMethodsIncompatible",
 		message: "Tab sync requires at least one of the following storage methods: localStorage, sessionStorage",
 	} as const satisfies ThemeManagerError,
 
 	cancelled: {
+		namespace: "ThemeManager",
 		id: "Cancelled",
 		message: "The operation has been cancelled.",
 	} as const satisfies ThemeManagerError,

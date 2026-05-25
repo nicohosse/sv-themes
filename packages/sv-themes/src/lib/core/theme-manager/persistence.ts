@@ -34,7 +34,7 @@ export async function getPersistedTheme<const Themes extends ThemeRecord>(
 			if (!storedTheme) {
 				if (config?.errorOnMiss)
 					console.error(
-						`Failed to get theme from local storage. ${config?.syncOnMiss ? "Marking as desynced." : "Skipping."}.`,
+						`Failed to get theme from local storage. ${config?.syncOnMiss ? "Marking as desynced" : "Skipping"}.`,
 					);
 
 				continue;
@@ -50,7 +50,7 @@ export async function getPersistedTheme<const Themes extends ThemeRecord>(
 			if (!storedTheme) {
 				if (config?.errorOnMiss)
 					console.error(
-						`Failed to get theme from session storage. ${config?.syncOnMiss ? "Marking as desynced." : "Skipping."}.`,
+						`Failed to get theme from session storage. ${config?.syncOnMiss ? "Marking as desynced" : "Skipping"}.`,
 					);
 
 				continue;
@@ -65,9 +65,7 @@ export async function getPersistedTheme<const Themes extends ThemeRecord>(
 
 			if (!storedTheme) {
 				if (config?.errorOnMiss)
-					console.error(
-						`Failed to get theme from cookie. ${config?.syncOnMiss ? "Marking as desynced." : "Skipping."}.`,
-					);
+					console.error(`Failed to get theme from cookie. ${config?.syncOnMiss ? "Marking as desynced" : "Skipping"}.`);
 
 				continue;
 			}
@@ -78,8 +76,11 @@ export async function getPersistedTheme<const Themes extends ThemeRecord>(
 	}
 
 	if (dominantTheme && dominantTheme !== "system" && !themeManager.themeIds.includes(dominantTheme)) {
-		if (config?.fixErrors) await persistTheme(themeManager, themeManager.selectedTheme, config?.cookies);
-		return undefined;
+		if (!config?.fixErrors) return undefined;
+
+		await persistTheme(themeManager, themeManager.selectedTheme, config?.cookies);
+
+		return themeManager.selectedTheme;
 	}
 
 	if (config?.syncOnMiss && dominantTheme) {

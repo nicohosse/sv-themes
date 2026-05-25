@@ -1,5 +1,5 @@
 import { err, ok, type Result } from "neverthrow";
-import type { SystemTheme, Theme, ThemeRecord } from "$lib/index.js";
+import type { SystemTheme, ThemeRecord } from "$lib/index.js";
 import { ThemeManagerError } from "./errors.js";
 import type { ResolvedThemeManagerConfig } from "./resolver.js";
 
@@ -28,25 +28,10 @@ export function validateSystemTheme<const Themes extends ThemeRecord>(
 	return ok();
 }
 
-export function validateTheme(theme: Theme): Result<void, ThemeManagerError> {
-	if (theme.id === "system" || !theme.id.trim()) return err(ThemeManagerError.themeInvalidId(theme.id));
-
-	return ok();
-}
-
 export function validateThemeManagerConfig<const Themes extends ThemeRecord>(
 	config: ResolvedThemeManagerConfig<Themes>,
 ): Result<void, ThemeManagerError[]> {
-	const errors = [];
-
-	const themeValues = Object.values(config.themes);
-
-	if (themeValues.length < 1) errors.push(ThemeManagerError.noThemes);
-
-	for (const theme of themeValues) {
-		const themeResult = validateTheme(theme);
-		if (themeResult.isErr()) errors.push(themeResult.error);
-	}
+	const errors: ThemeManagerError[] = [];
 
 	const selectedThemeResult = validateRequestedTheme(config.themes, config.initialTheme);
 	if (selectedThemeResult.isErr()) errors.push(selectedThemeResult.error);

@@ -1,14 +1,8 @@
 import type { Cookies } from "@sveltejs/kit";
 import { describe, expect, it, vi } from "vitest";
+import { createMockCookies } from "$lib/tests/cookie.js";
 import { testEnv } from "$lib/tests/test-environment.js";
 import { getCookie, setCookie } from "./cookie.js";
-
-function createMockCookies() {
-	return {
-		set: vi.fn(),
-		get: vi.fn(),
-	};
-}
 
 describe("setCookie", () => {
 	it("uses SvelteKit cookies API when provided", async () => {
@@ -27,8 +21,8 @@ describe("setCookie", () => {
 
 		const options = cookies.set.mock.calls[0][2];
 
-		expect(options.expires).toBeInstanceOf(Date);
-		expect(options.expires.getTime()).toBe(timestamp);
+		expect(options?.expires).toBeInstanceOf(Date);
+		expect(options?.expires?.getTime()).toBe(timestamp);
 	});
 
 	it("uses cookieStore when available", async () => {

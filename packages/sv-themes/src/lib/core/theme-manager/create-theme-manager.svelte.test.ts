@@ -8,18 +8,15 @@ import {
 import { createThemeManager, type ThemeManagerConfig } from "./create-theme-manager.svelte.js";
 import { ThemeManagerError } from "./errors.js";
 import * as persistenceModule from "./persistence.js";
-import { persistTheme } from "./persistence.js";
 import { INTERNAL as THEME_MANAGER_INTERNAL } from "./theme-manager.js";
 
 describe("createThemeManager", () => {
 	it("returns Ok with valid config", () => {
-		const result = createThemeManager(createMockThemeManagerConfig());
-		expect(result).toBeOk();
+		expect(createThemeManager(MOCK_THEME_MANAGER_CONFIG)).toBeOk();
 	});
 
 	it.each(INVALID_THEME_MANAGER_CONFIG_CASES)("rejects: $name", ({ config, expectedError }) => {
-		const result = createThemeManager(config);
-		expect(result).toBeErr(expectedError);
+		expect(createThemeManager(config)).toBeErr(expectedError);
 	});
 
 	it("correctly derives resolvedUseSystemTheme and resolvedTheme based on state and config", () => {
