@@ -1,5 +1,3 @@
-// v8 ignore file
-
 import { vi } from "vitest";
 
 export type CookieStoreMock = {

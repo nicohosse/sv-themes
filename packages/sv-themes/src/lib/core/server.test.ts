@@ -141,7 +141,7 @@ describe("getSSRTags", () => {
 		});
 
 		it("skips theme-color meta tag if theme doesnt have a color assigned", () => {
-			const themes = expectOk(createThemes([{ id: "nature", type: "light" }]));
+			const themes = createThemes([{ id: "nature", type: "light" }]);
 
 			const themeManager = expectOk(
 				createThemeManager(
@@ -166,7 +166,7 @@ describe("getSSRTags", () => {
 		});
 
 		it("sets non-hex theme-color if color can be resolved", () => {
-			const themes = expectOk(createThemes([{ id: "light", type: "light", color: "white" }]));
+			const themes = createThemes([{ id: "light", type: "light", color: "white" }]);
 
 			const themeManager = expectOk(
 				createThemeManager(
@@ -182,7 +182,7 @@ describe("getSSRTags", () => {
 		});
 
 		it("logs error and skips meta tag if non-hex theme-color cannot be resolved", () => {
-			const themes = expectOk(createThemes([{ id: "light", type: "light", color: "var(--missing)" }]));
+			const themes = createThemes([{ id: "light", type: "light", color: "var(--missing)" }]);
 
 			const themeManager = expectOk(
 				createThemeManager(
@@ -228,12 +228,10 @@ describe("getSSRTags", () => {
 		});
 
 		it("creates or updates the color-scheme meta tag with dark light content if enabled", () => {
-			const themes = expectOk(
-				createThemes([
-					{ id: "dark", type: "dark" },
-					{ id: "light", type: "light" },
-				]),
-			);
+			const themes = createThemes([
+				{ id: "dark", type: "dark" },
+				{ id: "light", type: "light" },
+			]);
 
 			const themeManager = expectOk(createThemeManager({ ...MOCK_THEME_MANAGER_CONFIG, themes }));
 
@@ -243,7 +241,7 @@ describe("getSSRTags", () => {
 		});
 
 		it("creates or updates the color-scheme with light content when there is no dark theme if enabled", () => {
-			const themes = expectOk(createThemes([{ id: "light", type: "light" }]));
+			const themes = createThemes([{ id: "light", type: "light" }]);
 
 			const themeManager = expectOk(createThemeManager({ themes, initialTheme: "light" }));
 
@@ -253,7 +251,7 @@ describe("getSSRTags", () => {
 		});
 
 		it("creates or updates the color-scheme with dark content when there is no light theme if enabled", () => {
-			const themes = expectOk(createThemes([{ id: "dark", type: "dark" }]));
+			const themes = createThemes([{ id: "dark", type: "dark" }]);
 
 			const themeManager = expectOk(createThemeManager({ themes, initialTheme: "dark" }));
 

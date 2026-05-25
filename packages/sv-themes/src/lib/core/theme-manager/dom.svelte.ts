@@ -144,8 +144,8 @@ export function registerStorageListener<const Themes extends ThemeRecord>(themeM
 		const isThemeKey = event.key === themeManager.storage?.key;
 		if (!isThemeKey) return;
 
-		const isLocalStorage = event.storageArea === globalThis.localStorage;
-		const isSessionStorage = event.storageArea === globalThis.sessionStorage;
+		const isLocalStorage = Object.is(event.storageArea, globalThis.localStorage);
+		const isSessionStorage = Object.is(event.storageArea, globalThis.sessionStorage);
 
 		if ((useLocalStorage && isLocalStorage) || (useSessionStorage && isSessionStorage)) {
 			const storageTheme = event.newValue as keyof Themes | "system";
@@ -197,12 +197,10 @@ export function registerThemeManager<const Themes extends ThemeRecord>(themeMana
 		});
 	});
 
-	let currentLoadThemePromise = Promise.resolve();
-
-	$effect.pre(() => {
+	$effect(() => {
 		themeManager.resolvedTheme;
 		themeManager.resolvedUseSystemTheme;
 
-		currentLoadThemePromise = currentLoadThemePromise.then(() => updateDom(themeManager));
+		updateDom(themeManager);
 	});
 }

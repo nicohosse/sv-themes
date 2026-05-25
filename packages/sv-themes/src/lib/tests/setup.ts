@@ -3,6 +3,7 @@ import { format } from "@vitest/pretty-format";
 import type { Result } from "neverthrow";
 import { afterEach, expect, vi } from "vitest";
 import type { LibError } from "$lib/index.js";
+import { StorageMock } from "./storage.js";
 import { resetTestEnv } from "./test-environment.js";
 
 export function expectOk<T, E>(result: Result<T, E>): T {
@@ -31,6 +32,24 @@ function formatErrors(error: LibError): string {
 	return ["Errors:", format(errors), "Messages:", ...errors.map((error) => `- ${error.message}`)].join("\n");
 }
 
+type ExpectedError = LibError["id"] | Partial<LibError>;
+
+function deepEqual(a: unknown, b: unknown): boolean {
+	if (a === b) return true;
+
+	if (typeof a !== "object" || a === null || typeof b !== "object" || b === null) return false;
+
+	const keysA = Object.keys(a);
+	const keysB = Object.keys(b);
+
+	if (keysA.length !== keysB.length) return false;
+
+	const objA = a as Record<string, unknown>;
+	const objB = b as Record<string, unknown>;
+
+	return keysA.every((key) => deepEqual(objA[key], objB[key]));
+}
+
 expect.extend({
 	toBeOk(received: Result<unknown, LibError>) {
 		if (!isNeverthrowResult(received))
@@ -51,7 +70,7 @@ expect.extend({
 		};
 	},
 
-	toBeErr(received: Result<unknown, LibError>, expectedTypes?: LibError["id"] | LibError["id"][], strict = false) {
+	toBeErr(received: Result<unknown, LibError>, expectedErrors?: ExpectedError | ExpectedError[], strict = false) {
 		if (!isNeverthrowResult(received))
 			return {
 				pass: false,
@@ -66,48 +85,53 @@ expect.extend({
 
 		const errors = normalizeErrors(received.error);
 
-		if (expectedTypes) {
-			const expected = Array.isArray(expectedTypes) ? expectedTypes : [expectedTypes];
+		if (expectedErrors !== undefined) {
+			const expected = Array.isArray(expectedErrors) ? expectedErrors : [expectedErrors];
 
-			const receivedTypes = errors.map((error) => error.id);
+			const matches = (received: LibError, expected: ExpectedError): boolean => {
+				if (expected && typeof expected === "object") return deepEqual(received, expected);
+				return received.id === expected;
+			};
 
-			const missingTypes = expected.filter((type) => !receivedTypes.includes(type));
+			const formatExpectedValue = (val: ExpectedError): string =>
+				typeof val === "object" && val !== null ? format(val) : String(val);
 
-			if (missingTypes.length > 0)
+			const missing = expected.filter((exp) => !errors.some((rec) => matches(rec, exp)));
+
+			if (missing.length > 0)
 				return {
 					pass: false,
 					message: () =>
 						[
-							`expected Result to contain error type(s): [${expected.join(", ")}]`,
-							`missing error type(s): [${missingTypes.join(", ")}]`,
-							`received error types: [${receivedTypes.join(", ")}]`,
+							`expected Result to contain error(s): [${expected.map(formatExpectedValue).join(", ")}]`,
+							`missing error(s): [${missing.map(formatExpectedValue).join(", ")}]`,
+							`received errors:`,
 							formatErrors(received.error),
 						].join("\n"),
 				};
 
 			if (strict) {
-				const unexpectedTypes = receivedTypes.filter((type) => !expected.includes(type));
+				const unexpected = errors.filter((rec) => !expected.some((exp) => matches(rec, exp)));
 
-				if (unexpectedTypes.length > 0)
+				if (unexpected.length > 0)
 					return {
 						pass: false,
 						message: () =>
 							[
-								`expected Result to only contain error type(s): [${expected.join(", ")}]`,
-								`received unexpected error type(s): [${unexpectedTypes.join(", ")}]`,
+								`expected Result to only contain error(s): [${expected.map(formatExpectedValue).join(", ")}]`,
+								`received unexpected error(s): [${unexpected.map(formatExpectedValue).join(", ")}]`,
 								formatErrors(received.error),
 							].join("\n"),
 					};
 
-				if (receivedTypes.length !== expected.length)
+				if (errors.length !== expected.length)
 					return {
 						pass: false,
 						message: () =>
 							[
 								`expected Result to contain exactly ${expected.length} error(s)`,
-								`received ${receivedTypes.length} error(s)`,
-								`expected: [${expected.join(", ")}]`,
-								`received: [${receivedTypes.join(", ")}]`,
+								`received ${errors.length} error(s)`,
+								`expected: [${expected.map(formatExpectedValue).join(", ")}]`,
 								formatErrors(received.error),
 							].join("\n"),
 					};
@@ -117,9 +141,15 @@ expect.extend({
 		return {
 			pass: true,
 			message: () =>
-				expectedTypes
-					? `expected Result not to contain error type(s): ${
-							Array.isArray(expectedTypes) ? expectedTypes.join(", ") : expectedTypes
+				expectedErrors !== undefined
+					? `expected Result not to contain error(s): ${
+							Array.isArray(expectedErrors)
+								? expectedErrors
+										.map((error) => (typeof error === "object" && error !== null ? format(error) : String(error)))
+										.join(", ")
+								: typeof expectedErrors === "object" && expectedErrors !== null
+									? format(expectedErrors)
+									: expectedErrors
 						}`
 					: "expected Result not to be Err",
 		};
@@ -128,7 +158,7 @@ expect.extend({
 
 interface CustomMatchers<R = unknown> {
 	toBeOk(): R;
-	toBeErr(expectedTypes?: LibError["id"] | LibError["id"][], strict?: boolean): R;
+	toBeErr(expectedErrors?: ExpectedError | ExpectedError[], strict?: boolean): R;
 }
 
 declare module "vitest" {
@@ -142,6 +172,12 @@ function clearDocumentCookies() {
 		document.cookie = cookie.replace(/^ +/, "").replace(/=.*/, `=;expires=${new Date(0).toUTCString()};path=/`);
 	});
 }
+
+const localStorageMock = new StorageMock();
+const sessionStorageMock = new StorageMock();
+
+vi.stubGlobal("localStorage", localStorageMock);
+vi.stubGlobal("sessionStorage", sessionStorageMock);
 
 afterEach(() => {
 	const root = document.documentElement;

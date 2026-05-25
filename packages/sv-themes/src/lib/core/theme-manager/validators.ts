@@ -18,7 +18,10 @@ export function validateSystemTheme<const Themes extends ThemeRecord>(
 ): Result<void, ThemeManagerError> {
 	if (config.systemThemes.kind === "disabled") return err(ThemeManagerError.systemThemesDisabled);
 
-	const resolvedSystemThemeId = config.systemThemes.mappings[systemTheme];
+	const resolvedSystemThemeId = config.systemThemes.mappings?.[systemTheme];
+
+	if (!resolvedSystemThemeId) return err(ThemeManagerError.systemThemeUnassigned(systemTheme));
+
 	const hasSystemTheme = resolvedSystemThemeId && resolvedSystemThemeId in config.themes;
 
 	if (hasSystemTheme && config.themes[resolvedSystemThemeId].type !== systemTheme)
@@ -28,10 +31,36 @@ export function validateSystemTheme<const Themes extends ThemeRecord>(
 	return ok();
 }
 
+export function validateThemes<const Themes extends ThemeRecord>(
+	config: ResolvedThemeManagerConfig<Themes>,
+): Result<void, ThemeManagerError[]> {
+	const seen = new Set<string>();
+	const duplicates: string[] = [];
+
+	const themes = Object.values(config.themes);
+
+	for (const theme of themes)
+		if (seen.has(theme.id)) duplicates.push(theme.id);
+		else {
+			seen.add(theme.id);
+			if (theme.id === "system" || !theme.id.trim()) return err([ThemeManagerError.themeInvalidId(theme.id)]);
+		}
+
+	if (seen.size === 0) return err([ThemeManagerError.noThemes]);
+
+	if (duplicates.length > 0)
+		return err(duplicates.map((duplicateTheme) => ThemeManagerError.duplicateTheme(duplicateTheme)));
+
+	return ok();
+}
+
 export function validateThemeManagerConfig<const Themes extends ThemeRecord>(
 	config: ResolvedThemeManagerConfig<Themes>,
 ): Result<void, ThemeManagerError[]> {
 	const errors: ThemeManagerError[] = [];
+
+	const themesResult = validateThemes(config);
+	if (themesResult.isErr()) errors.push(...themesResult.error);
 
 	const selectedThemeResult = validateRequestedTheme(config.themes, config.initialTheme);
 	if (selectedThemeResult.isErr()) errors.push(selectedThemeResult.error);

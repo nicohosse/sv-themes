@@ -1,17 +1,10 @@
-// v8 ignore file
-
 import { createThemes, DEFAULT_THEMES, type ThemeManagerConfig, type ThemeManagerError } from "$lib/index.js";
-import { expectOk } from "./setup.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-type DeepPartial<T> = {
-	[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K];
-};
-
-function deepMerge<T>(base: T, override?: DeepPartial<T>): T {
+function deepMerge<T>(base: T, override?: unknown): T {
 	if (!override) return base;
 
 	if (Array.isArray(base)) return (override as T) ?? base;
@@ -40,59 +33,91 @@ export const MOCK_THEME_MANAGER_CONFIG: ThemeManagerConfig<typeof DEFAULT_THEMES
 } as const;
 
 export function createMockThemeManagerConfig(
-	overrides?: DeepPartial<ThemeManagerConfig>,
+	overrides?: Partial<ThemeManagerConfig>,
 	deepMerging = true,
 ): ThemeManagerConfig {
-	return deepMerging
-		? deepMerge(MOCK_THEME_MANAGER_CONFIG, overrides)
-		: ({ ...MOCK_THEME_MANAGER_CONFIG, ...overrides } as ThemeManagerConfig);
+	const base = MOCK_THEME_MANAGER_CONFIG;
+	return deepMerging ? deepMerge(base, overrides) : { ...base, ...overrides };
 }
 
 export const INVALID_THEME_MANAGER_CONFIG_CASES: {
 	name: string;
 	config: ThemeManagerConfig;
-	expectedError: ThemeManagerError["id"];
+	expectedError: ThemeManagerError["id"] | Partial<ThemeManagerError>;
 }[] = [
 	{
 		name: "Initial theme ID not in record",
-		config: { themes: DEFAULT_THEMES, initialTheme: "missing" },
+		config: createMockThemeManagerConfig({ initialTheme: "missing" }),
 		expectedError: "ThemeNotFound",
 	},
 	{
 		name: "System themes enabled but missing 'light' type theme",
-		config: {
-			themes: expectOk(createThemes([{ id: "dark", type: "dark" }])),
-			initialTheme: "dark",
-			systemThemes: { kind: "enabled" },
-		},
+		config: createMockThemeManagerConfig(
+			{
+				themes: createThemes([{ id: "dark", type: "dark" }]),
+			},
+			false,
+		),
 		expectedError: "SystemThemeUnassigned",
 	},
 	{
 		name: "System themes enabled but missing 'dark' type theme",
-		config: {
-			themes: expectOk(createThemes([{ id: "light", type: "light" }])),
-			initialTheme: "light",
-			systemThemes: { kind: "enabled" },
-		},
+		config: createMockThemeManagerConfig(
+			{
+				themes: createThemes([{ id: "light", type: "light" }]),
+			},
+			false,
+		),
 		expectedError: "SystemThemeUnassigned",
 	},
 	{
 		name: "Mismatched system mapping (light pref -> dark theme)",
-		config: {
-			themes: DEFAULT_THEMES,
-			initialTheme: "light",
-			systemThemes: { kind: "enabled", mappings: { light: "dark" } },
-		},
+		config: createMockThemeManagerConfig(
+			{
+				systemThemes: { kind: "enabled", mappings: { light: "dark" } },
+			},
+			false,
+		),
 		expectedError: "SystemThemeInvalidType",
 	},
 	{
 		name: "System themes disabled but useSystemTheme is true",
-		config: {
-			themes: DEFAULT_THEMES,
-			initialTheme: "light",
-			systemThemes: { kind: "disabled" },
-			useSystemTheme: true,
-		},
+		config: createMockThemeManagerConfig(
+			{
+				systemThemes: { kind: "disabled" },
+				useSystemTheme: true,
+			},
+			false,
+		),
 		expectedError: "SystemThemesDisabled",
+	},
+	{
+		name: "Multiple themes use the same ID",
+		config: createMockThemeManagerConfig(
+			{
+				themes: {
+					dark: { id: "dark", type: "dark" },
+					anotherDark: { id: "dark", type: "dark" },
+				},
+				systemThemes: { kind: "disabled" },
+			},
+			false,
+		),
+		expectedError: "DuplicateTheme",
+	},
+	{
+		name: "Tab sync enabled but no compatible storage method used",
+		config: createMockThemeManagerConfig(
+			{
+				storage: {
+					methods: ["cookie"],
+					key: "theme",
+					cookie: { name: "theme" },
+				},
+				enableTabSync: true,
+			},
+			false,
+		),
+		expectedError: "TabSyncStorageMethodsIncompatible",
 	},
 ];

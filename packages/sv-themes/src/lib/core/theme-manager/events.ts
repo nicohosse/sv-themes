@@ -1,5 +1,3 @@
-// v8 ignore file
-
 import type { ThemeRecord } from "$lib/index.js";
 import type { SystemTheme } from "./theme-manager.js";
 

@@ -60,14 +60,12 @@ describe("resolveSystemThemes", () => {
 	});
 
 	it("should prefer explicit mappings over inferred mappings", () => {
-		const themes = expectOk(
-			createThemes([
-				{
-					id: "nature",
-					type: "light",
-				},
-			]),
-		);
+		const themes = createThemes([
+			{
+				id: "nature",
+				type: "light",
+			},
+		]);
 
 		const result = resolveSystemThemes(
 			createMockThemeManagerConfig({
@@ -93,14 +91,12 @@ describe("resolveSystemThemes", () => {
 	});
 
 	it("should return an error if no light theme can be resolved", () => {
-		const darkOnlyThemes = expectOk(
-			createThemes([
-				{
-					id: "dark",
-					type: "dark",
-				},
-			]),
-		);
+		const darkOnlyThemes = createThemes([
+			{
+				id: "dark",
+				type: "dark",
+			},
+		]);
 
 		const result = resolveSystemThemes(createMockThemeManagerConfig({ themes: darkOnlyThemes }, false));
 
@@ -108,14 +104,12 @@ describe("resolveSystemThemes", () => {
 	});
 
 	it("should return an error if no dark theme can be resolved", () => {
-		const lightOnlyThemes = expectOk(
-			createThemes([
-				{
-					id: "light",
-					type: "light",
-				},
-			]),
-		);
+		const lightOnlyThemes = createThemes([
+			{
+				id: "light",
+				type: "light",
+			},
+		]);
 
 		const result = resolveSystemThemes(createMockThemeManagerConfig({ themes: lightOnlyThemes }, false));
 

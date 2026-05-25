@@ -1,5 +1,3 @@
-// v8 ignore file
-
 import type { Cookies } from "@sveltejs/kit";
 import { vi } from "vitest";
 

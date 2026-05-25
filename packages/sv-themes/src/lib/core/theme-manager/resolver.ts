@@ -3,7 +3,7 @@ import { type SystemTheme, ThemeManagerError, type ThemeRecord } from "$lib/inde
 import type { ThemeManagerConfig } from "./create-theme-manager.svelte.js";
 import { DEFAULT_STORAGE_HYBRID, type SystemThemes } from "./theme-manager.js";
 
-export type ResolvedSystemThemesConfig<Themes extends ThemeRecord> =
+export type ResolvedSystemThemesConfig<Themes extends ThemeRecord = ThemeRecord> =
 	SystemThemes<Themes> extends infer T
 		? T extends { kind: "enabled" }
 			? {
@@ -13,7 +13,7 @@ export type ResolvedSystemThemesConfig<Themes extends ThemeRecord> =
 			: T
 		: never;
 
-export type ResolvedThemeManagerConfig<Themes extends ThemeRecord> = Omit<
+export type ResolvedThemeManagerConfig<Themes extends ThemeRecord = ThemeRecord> = Omit<
 	ThemeManagerConfig<Themes>,
 	"systemThemes" | "attributes"
 > & {

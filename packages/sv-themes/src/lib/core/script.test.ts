@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import { createThemes, DEFAULT_THEMES } from "$lib/index.js";
-import { expectOk } from "$lib/tests/setup.js";
 import { testEnv } from "$lib/tests/test-environment.js";
 import { setCookie } from "$lib/utils/cookie.js";
 import { getThemeScript, safeSerializeArgument, type ThemeScriptArguments, themeScript } from "./script.js";
@@ -207,12 +206,10 @@ describe("themeScript", () => {
 	});
 
 	it("creates or updates the color-scheme meta tag with dark light content if enabled", () => {
-		const themes = expectOk(
-			createThemes([
-				{ id: "dark", type: "dark" },
-				{ id: "light", type: "light" },
-			]),
-		);
+		const themes = createThemes([
+			{ id: "dark", type: "dark" },
+			{ id: "light", type: "light" },
+		]);
 
 		themeScript(
 			themes,
@@ -233,7 +230,7 @@ describe("themeScript", () => {
 	});
 
 	it("creates or updates the color-scheme meta tag with light content when there is no dark theme if enabled", () => {
-		const lightOnlyThemes = expectOk(createThemes([{ id: "light", type: "light" }]));
+		const lightOnlyThemes = createThemes([{ id: "light", type: "light" }]);
 
 		themeScript(
 			lightOnlyThemes,
@@ -254,7 +251,7 @@ describe("themeScript", () => {
 	});
 
 	it("creates or updates the color-scheme meta tag with dark content when there is no light theme if enabled", () => {
-		const darkOnlyThemes = expectOk(createThemes([{ id: "dark", type: "dark" }]));
+		const darkOnlyThemes = createThemes([{ id: "dark", type: "dark" }]);
 
 		themeScript(
 			darkOnlyThemes,
@@ -295,7 +292,7 @@ describe("themeScript", () => {
 	});
 
 	it("creates or updates non-hex theme-color if color can be resolved when useThemeColor is true", () => {
-		const themes = expectOk(createThemes([{ id: "light", type: "light", color: "white" }]));
+		const themes = createThemes([{ id: "light", type: "light", color: "white" }]);
 
 		themeScript(
 			themes,
@@ -317,7 +314,7 @@ describe("themeScript", () => {
 	});
 
 	it("removes theme-color meta tag if theme doesnt have a color assigned", () => {
-		const themes = expectOk(createThemes([{ id: "nature", type: "light" }]));
+		const themes = createThemes([{ id: "nature", type: "light" }]);
 
 		let themeColorMetaElement: HTMLMetaElement | null = document.createElement("meta");
 		themeColorMetaElement.name = "theme-color";
@@ -343,7 +340,7 @@ describe("themeScript", () => {
 	});
 
 	it("removes meta tag if non-hex theme-color cannot be resolved", () => {
-		const themes = expectOk(createThemes([{ id: "light", type: "light", color: "var(--missing)" }]));
+		const themes = createThemes([{ id: "light", type: "light", color: "var(--missing)" }]);
 
 		let themeColorMetaElement: HTMLMetaElement | null = document.createElement("meta");
 		themeColorMetaElement.name = "theme-color";

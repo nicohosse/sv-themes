@@ -1,5 +1,3 @@
-import os from "node:os";
-import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { svelteTesting } from "@testing-library/svelte/vite";
@@ -17,7 +15,16 @@ export default defineConfig({
 		alias: {
 			$lib: fileURLToPath(new URL("./src/lib", import.meta.url)),
 		},
-		execArgv: ["--localstorage-file", path.resolve(os.tmpdir(), `vitest-${process.pid}.localstorage`)],
+		coverage: {
+			exclude: [
+				"index.ts",
+				"tests/**.ts",
+				"core/errors.ts",
+				"core/theme/index.ts",
+				"core/theme-manager/errors.ts",
+				"core/theme-manager/events.ts",
+			],
+		},
 	},
 	resolve: process.env.VITEST
 		? {

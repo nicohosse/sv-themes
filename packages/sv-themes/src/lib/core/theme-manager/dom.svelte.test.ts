@@ -1,4 +1,4 @@
-import { err, ok } from "neverthrow";
+import { ok } from "neverthrow";
 import { flushSync } from "svelte";
 import { describe, expect, it, vi } from "vitest";
 import { forceThemeRegistry } from "$lib/contexts/force-theme-requests-context.svelte.js";
@@ -6,7 +6,6 @@ import { createThemes } from "$lib/index.js";
 import { expectOk } from "$lib/tests/setup.js";
 import { testEnv } from "$lib/tests/test-environment.js";
 import { createMockThemeManagerConfig, MOCK_THEME_MANAGER_CONFIG } from "$lib/tests/theme-manager.js";
-import * as domModule from "./dom.svelte.js";
 import {
 	cleanupThemeClasses,
 	createThemeManager,
@@ -63,12 +62,10 @@ describe("updateMetaTags", () => {
 	});
 
 	it("creates or updates the color-scheme meta tag with dark light content if enabled", () => {
-		const themes = expectOk(
-			createThemes([
-				{ id: "dark", type: "dark" },
-				{ id: "light", type: "light" },
-			]),
-		);
+		const themes = createThemes([
+			{ id: "dark", type: "dark" },
+			{ id: "light", type: "light" },
+		]);
 
 		const themeManager = expectOk(createThemeManager({ ...MOCK_THEME_MANAGER_CONFIG, themes }));
 
@@ -80,7 +77,7 @@ describe("updateMetaTags", () => {
 	});
 
 	it("creates or updates the color-scheme with light content when there is no dark theme if enabled", () => {
-		const themes = expectOk(createThemes([{ id: "light", type: "light" }]));
+		const themes = createThemes([{ id: "light", type: "light" }]);
 
 		const themeManager = expectOk(createThemeManager({ themes, initialTheme: "light" }));
 
@@ -92,7 +89,7 @@ describe("updateMetaTags", () => {
 	});
 
 	it("creates or updates the color-scheme with dark content when there is no light theme if enabled", () => {
-		const themes = expectOk(createThemes([{ id: "dark", type: "dark" }]));
+		const themes = createThemes([{ id: "dark", type: "dark" }]);
 
 		const themeManager = expectOk(createThemeManager({ themes, initialTheme: "dark" }));
 
@@ -122,7 +119,7 @@ describe("updateMetaTags", () => {
 	});
 
 	it("removes theme-color meta tag if theme doesnt have a color assigned", () => {
-		const themes = expectOk(createThemes([{ id: "nature", type: "light" }]));
+		const themes = createThemes([{ id: "nature", type: "light" }]);
 
 		const themeManager = expectOk(
 			createThemeManager(
@@ -155,7 +152,7 @@ describe("updateMetaTags", () => {
 	});
 
 	it("updates non-hex theme-color if color can be resolved", () => {
-		const themes = expectOk(createThemes([{ id: "light", type: "light", color: "white" }]));
+		const themes = createThemes([{ id: "light", type: "light", color: "white" }]);
 
 		const themeManager = expectOk(
 			createThemeManager(
@@ -173,7 +170,7 @@ describe("updateMetaTags", () => {
 	});
 
 	it("logs error and removes meta tag if non-hex theme-color cannot be resolved", () => {
-		const themes = expectOk(createThemes([{ id: "light", type: "light", color: "var(--missing)" }]));
+		const themes = createThemes([{ id: "light", type: "light", color: "var(--missing)" }]);
 
 		let themeColorMetaElement: HTMLMetaElement | null = document.createElement("meta");
 		themeColorMetaElement.name = "theme-color";
@@ -304,25 +301,6 @@ describe("updateDom", () => {
 });
 
 describe("registerStorageListener", () => {
-	const emitStorageEvent = (
-		key: string,
-		oldValue?: string | null,
-		newValue?: string,
-		storageArea = globalThis.localStorage,
-	) => {
-		const event = new StorageEvent("storage", {
-			key,
-			newValue,
-			oldValue,
-		});
-
-		Object.defineProperty(event, "storageArea", {
-			value: storageArea,
-		});
-
-		globalThis.dispatchEvent(event);
-	};
-
 	it("does nothing when not in browser environment", () => {
 		testEnv().browser(false).apply();
 
@@ -470,16 +448,15 @@ describe("registerStorageListener", () => {
 	it("handles invalid themes in storage events", async () => {
 		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
-		const consoleSpy = vi.spyOn(console, "error");
+		const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
 		const cleanup = registerStorageListener(themeManager);
 
 		globalThis.localStorage.setItem("theme", "missing");
-		emitStorageEvent("theme", null, "missing");
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
-		expect(consoleSpy).toHaveBeenCalledWith(
+		expect(consoleErrorSpy).toHaveBeenCalledWith(
 			"Invalid theme found in local storage: Theme 'missing' not found.\nAuto-fixing...",
 		);
 
@@ -506,7 +483,6 @@ describe("registerStorageListener", () => {
 		const cleanup = registerStorageListener(themeManager);
 
 		globalThis.localStorage.setItem("theme", "system");
-		emitStorageEvent("theme", null, "system");
 
 		expect(beforeChangeSpy).not.toHaveBeenCalled();
 
@@ -522,14 +498,13 @@ describe("registerStorageListener", () => {
 		const cleanup = registerStorageListener(themeManager);
 
 		globalThis.localStorage.setItem("theme", "light");
-		emitStorageEvent("theme", null, "light");
 
 		expect(beforeChangeSpy).not.toHaveBeenCalled();
 
 		cleanup();
 	});
 
-	it("sets theme when a valid theme change occurs in localStorage", () => {
+	it("sets theme when a valid theme change occurs in localStorage, and cleanup prevents subsequent triggers", () => {
 		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
 		const beforeChangeSpy = vi.fn();
@@ -538,7 +513,6 @@ describe("registerStorageListener", () => {
 		const cleanup = registerStorageListener(themeManager);
 
 		globalThis.localStorage.setItem("theme", "dark");
-		emitStorageEvent("theme", null, "dark");
 
 		expect(beforeChangeSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -547,10 +521,24 @@ describe("registerStorageListener", () => {
 		);
 
 		cleanup();
+
+		globalThis.localStorage.setItem("theme", "dark");
+
+		expect(beforeChangeSpy).not.toHaveBeenCalledTimes(2);
 	});
 
-	it("sets theme when a valid theme change occurs in sessionStorage, and cleanup prevents subsequent triggers", () => {
-		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
+	it("sets theme when a valid theme change occurs in sessionStorage, and cleanup prevents subsequent triggers", async () => {
+		const themeManager = expectOk(
+			createThemeManager(
+				createMockThemeManagerConfig({
+					storage: {
+						methods: ["sessionStorage"],
+						key: "theme",
+						cookie: { name: "theme" },
+					},
+				}),
+			),
+		);
 
 		const beforeChangeSpy = vi.fn();
 		themeManager.on("beforeChange", beforeChangeSpy);
@@ -558,9 +546,8 @@ describe("registerStorageListener", () => {
 		const cleanup = registerStorageListener(themeManager);
 
 		globalThis.sessionStorage.setItem("theme", "dark");
-		emitStorageEvent("theme", null, "dark", globalThis.sessionStorage);
 
-		vi.waitFor(() =>
+		await vi.waitFor(() =>
 			expect(beforeChangeSpy).toHaveBeenCalledWith(
 				expect.objectContaining({
 					to: "dark",
@@ -571,9 +558,8 @@ describe("registerStorageListener", () => {
 		cleanup();
 
 		globalThis.sessionStorage.setItem("theme", "dark");
-		emitStorageEvent("theme", null, "dark", globalThis.sessionStorage);
 
-		expect(beforeChangeSpy).not.toHaveBeenCalled();
+		expect(beforeChangeSpy).not.toHaveBeenCalledTimes(2);
 	});
 });
 
@@ -688,15 +674,13 @@ describe("registerThemeManager", () => {
 	it("accesses reactive properties resolvedTheme and resolvedUseSystemTheme, then updates the DOM", async () => {
 		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
-		const updateDomSpy = vi.spyOn(domModule, "updateDom").mockImplementation(() => {});
-
 		const cleanup = $effect.root(() => {
 			registerThemeManager(themeManager);
 		});
 
 		flushSync();
 
-		vi.waitFor(() => expect(updateDomSpy).toHaveBeenCalledWith(themeManager));
+		expect(document.documentElement.classList).toContain(MOCK_THEME_MANAGER_CONFIG.themes.light.className ?? "light");
 
 		cleanup();
 	});

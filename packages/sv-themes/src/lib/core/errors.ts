@@ -1,9 +1,7 @@
-// v8 ignore file
-
-import type { ThemeError, ThemeManagerError } from "$lib/index.js";
+import type { ThemeManagerError } from "$lib/index.js";
 
 export type BaseError = {
 	message: string;
 };
 
-export type LibError = ThemeManagerError | ThemeError;
+export type LibError = ThemeManagerError;
