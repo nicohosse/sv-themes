@@ -2,8 +2,8 @@
 	import { BROWSER } from "esm-env";
 	import type { Snippet } from "svelte";
 	import {
-		forceThemeRegistry,
 		getForceThemeParentId,
+		getForceThemeRegistry,
 		setForceThemeParentId,
 	} from "$lib/contexts/force-theme-requests-context.svelte.js";
 	import type { ThemeRecord } from "$lib/index.js";
@@ -22,8 +22,10 @@
 
 	setForceThemeParentId(id);
 
+	let forceThemeRegistry = getForceThemeRegistry();
+
 	$effect.pre(() => {
-		forceThemeRegistry.register({
+		forceThemeRegistry?.register({
 			id: id,
 			parentId,
 			forcedTheme: forcedTheme?.toString(),
@@ -31,7 +33,7 @@
 			overrideChildren,
 		});
 
-		return () => forceThemeRegistry.unregister(id);
+		return () => forceThemeRegistry?.unregister(id);
 	});
 </script>
 

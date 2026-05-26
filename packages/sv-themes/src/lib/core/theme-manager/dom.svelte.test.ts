@@ -1,7 +1,12 @@
 import { ok } from "neverthrow";
 import { flushSync } from "svelte";
-import { describe, expect, it, vi } from "vitest";
-import { forceThemeRegistry } from "$lib/contexts/force-theme-requests-context.svelte.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	createForceThemeRegistry,
+	type ForceThemeRegistry,
+	getForceThemeRegistry,
+	setForceThemeRegistry,
+} from "$lib/contexts/force-theme-requests-context.svelte.js";
 import { createThemes } from "$lib/index.js";
 import { expectOk } from "$lib/tests/setup.js";
 import { testEnv } from "$lib/tests/test-environment.js";
@@ -563,7 +568,29 @@ describe("registerStorageListener", () => {
 	});
 });
 
+vi.mock("$lib/contexts/force-theme-requests-context.svelte.js", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("$lib/contexts/force-theme-requests-context.svelte.js")>();
+
+	return {
+		...actual,
+		getForceThemeRegistry: vi.fn(actual.getForceThemeRegistry),
+		setForceThemeRegistry: vi.fn(actual.setForceThemeRegistry),
+	};
+});
+
 describe("registerThemeManager", () => {
+	let forceThemeRegistry: ForceThemeRegistry | undefined;
+
+	beforeEach(() => {
+		forceThemeRegistry = undefined;
+
+		vi.mocked(getForceThemeRegistry).mockImplementation(() => forceThemeRegistry);
+		vi.mocked(setForceThemeRegistry).mockImplementation((registry: ForceThemeRegistry) => {
+			forceThemeRegistry = registry;
+			return forceThemeRegistry;
+		});
+	});
+
 	it("sets up storage and media listeners, and applies persisted theme when present", async () => {
 		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
@@ -616,7 +643,11 @@ describe("registerThemeManager", () => {
 
 		const setForcedThemeSpy = vi.spyOn(themeManager, "setForcedTheme").mockResolvedValue(ok());
 
-		vi.spyOn(forceThemeRegistry, "dominantForcedTheme", "get").mockReturnValue("dark");
+		const mockForceThemeRegistry = createForceThemeRegistry();
+
+		vi.spyOn(mockForceThemeRegistry, "dominantForcedTheme", "get").mockReturnValue("dark");
+
+		setForceThemeRegistry(mockForceThemeRegistry);
 
 		const cleanup = $effect.root(() => {
 			registerThemeManager(themeManager);
@@ -634,7 +665,11 @@ describe("registerThemeManager", () => {
 	it("logs an error when setForcedTheme returns an error", async () => {
 		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
-		vi.spyOn(forceThemeRegistry, "dominantForcedTheme", "get").mockReturnValue("missing");
+		const mockForceThemeRegistry = createForceThemeRegistry();
+
+		vi.spyOn(mockForceThemeRegistry, "dominantForcedTheme", "get").mockReturnValue("missing");
+
+		setForceThemeRegistry(mockForceThemeRegistry);
 
 		const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -654,7 +689,11 @@ describe("registerThemeManager", () => {
 	it("does not call setForcedTheme when forced theme matches dominant forced theme", async () => {
 		const themeManager = expectOk(createThemeManager(createMockThemeManagerConfig({ forcedTheme: "light" }, false)));
 
-		vi.spyOn(forceThemeRegistry, "dominantForcedTheme", "get").mockReturnValue("light");
+		const mockForceThemeRegistry = createForceThemeRegistry();
+
+		vi.spyOn(mockForceThemeRegistry, "dominantForcedTheme", "get").mockReturnValue("light");
+
+		setForceThemeRegistry(mockForceThemeRegistry);
 
 		const setForcedThemeSpy = vi.spyOn(themeManager, "setForcedTheme");
 
@@ -681,6 +720,20 @@ describe("registerThemeManager", () => {
 		flushSync();
 
 		expect(document.documentElement.classList).toContain(MOCK_THEME_MANAGER_CONFIG.themes.light.className ?? "light");
+
+		cleanup();
+	});
+
+	it("creates the force theme registry", () => {
+		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+		const cleanup = $effect.root(() => {
+			registerThemeManager(themeManager);
+		});
+
+		flushSync();
+
+		expect(getForceThemeRegistry()).not.toBeUndefined();
 
 		cleanup();
 	});

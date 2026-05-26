@@ -1,6 +1,11 @@
 import { BROWSER } from "esm-env";
 import { untrack } from "svelte";
-import { forceThemeRegistry } from "$lib/contexts/force-theme-requests-context.svelte.js";
+import {
+	createForceThemeRegistry,
+	type ForceThemeRegistry,
+	getForceThemeRegistry,
+	setForceThemeRegistry,
+} from "$lib/contexts/force-theme-requests-context.svelte.js";
 import type { ThemeRecord } from "$lib/index.js";
 import { resolveCssColor } from "$lib/utils/resolve-css-color.js";
 import { getPersistedTheme, persistTheme } from "./persistence.js";
@@ -169,6 +174,9 @@ export function registerStorageListener<const Themes extends ThemeRecord>(themeM
 }
 
 export function registerThemeManager<const Themes extends ThemeRecord>(themeManager: ThemeManager<Themes>) {
+	const forceThemeRegistry = getForceThemeRegistry() ?? createForceThemeRegistry();
+	setForceThemeRegistry(forceThemeRegistry);
+
 	$effect.pre(() => {
 		const removeStorageListener = registerStorageListener(themeManager);
 		const removeMediaListener = registerMediaListener(themeManager);

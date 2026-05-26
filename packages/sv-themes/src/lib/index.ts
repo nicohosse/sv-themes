@@ -1,6 +1,6 @@
 export { themeSelector } from "./actions/theme-selector.svelte.js";
 
-export { default as ForceTheme } from "./components/ForceTheme.svelte";
+export { default as ForceTheme } from "./components/force-theme/ForceTheme.svelte";
 
 export type { LibError } from "./core/errors.js";
 

@@ -7,7 +7,7 @@ export const HEAD_CLOSE_REGEX = /<\/head>/;
 export const CLASS_ATTRIBUTE_REGEX = /class=["']([^"']*)["']/;
 export const STYLE_ATTRIBUTE_REGEX = /style=["']([^"']*)["']/;
 
-export const FORCED_THEME_META_REGEX =
+export const FORCE_THEME_META_REGEX =
 	/<meta\b[^>]*\bname=["']sv-themes-force-theme["'][^>]*\bcontent=["']forcedTheme=(?<forcedTheme>[^;]+);priority=(?<priority>[^;]+);overrideChildren=(?<overrideChildren>[^"']+)["'][^>]*>/gi;
 
 export function getSSRAttributes<Themes extends ThemeRecord>(themeManager: ThemeManager<Themes>) {
@@ -39,7 +39,7 @@ export function getSSRTags<Themes extends ThemeRecord>(themeManager: ThemeManage
 		else if (firstTheme.type === "dark" && themeManager.hasLightTheme) colorSchemeContent = "dark light";
 		else if (!themeManager.hasLightTheme && themeManager.hasDarkTheme) colorSchemeContent = "dark";
 
-		tags.push(`<meta name="color-scheme" content="${colorSchemeContent}" />`);
+		tags.push(`<meta name="color-scheme" content="${colorSchemeContent}">`);
 	}
 
 	if (themeManager.useThemeColor) {
@@ -61,7 +61,7 @@ export function getSSRTags<Themes extends ThemeRecord>(themeManager: ThemeManage
 			}
 		}
 
-		tags.push(`<meta name="theme-color" content="${resolvedColor}" />`);
+		tags.push(`<meta name="theme-color" content="${resolvedColor}">`);
 	}
 
 	return tags;
@@ -75,7 +75,7 @@ export function normalizeForcedTheme(value?: string) {
 }
 
 export function resolveForcedTheme(html: string) {
-	const forcedThemeMatches = html.matchAll(FORCED_THEME_META_REGEX).toArray();
+	const forcedThemeMatches = html.matchAll(FORCE_THEME_META_REGEX).toArray();
 
 	const forcedThemeRequests = forcedThemeMatches.map((match) => ({
 		forcedTheme: match.groups?.forcedTheme,

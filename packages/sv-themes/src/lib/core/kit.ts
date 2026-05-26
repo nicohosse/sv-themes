@@ -4,7 +4,7 @@ import { getPersistedTheme, type ThemeManager } from "$lib/index.js";
 import { getThemeScript } from "./script.js";
 import {
 	CLASS_ATTRIBUTE_REGEX,
-	FORCED_THEME_META_REGEX,
+	FORCE_THEME_META_REGEX,
 	getSSRAttributes,
 	getSSRTags,
 	HEAD_CLOSE_REGEX,
@@ -23,7 +23,7 @@ export function createThemeHandle<Themes extends ThemeRecord>(themeManager: Them
 
 		if (persistedTheme) themeManager.setTheme(persistedTheme, false);
 
-		const cspNonce = event.locals.cspNonce;
+		const cspNonce = event.locals?.cspNonce;
 
 		let cachedData: {
 			ssrAttributes: ReturnType<typeof getSSRAttributes>;
@@ -33,8 +33,9 @@ export function createThemeHandle<Themes extends ThemeRecord>(themeManager: Them
 
 		return await resolve(event, {
 			transformPageChunk: async ({ html }) => {
-				if (!cachedData) {
+				if (!cachedData || html.includes("head>")) {
 					const forcedTheme = resolveForcedTheme(html) as keyof Themes | "system" | undefined;
+
 					const forcedThemeResult = await themeManager.setForcedTheme(forcedTheme);
 					if (forcedThemeResult.isErr()) throw new Error(forcedThemeResult.error.message);
 
@@ -62,18 +63,18 @@ export function createThemeHandle<Themes extends ThemeRecord>(themeManager: Them
 						for (const [key, value] of Object.entries(cachedData.ssrAttributes))
 							if (key === "class")
 								if (updatedAttributes.includes("class="))
-									updatedAttributes = updatedAttributes.replace(CLASS_ATTRIBUTE_REGEX, `class="$1 ${value}"`);
+									updatedAttributes = updatedAttributes.replace(CLASS_ATTRIBUTE_REGEX, `class="${value} $1"`);
 								else updatedAttributes += ` class="${value}"`;
 							else if (key === "style")
 								if (updatedAttributes.includes("style="))
-									updatedAttributes = updatedAttributes.replace(STYLE_ATTRIBUTE_REGEX, `style="$1 ${value}"`);
+									updatedAttributes = updatedAttributes.replace(STYLE_ATTRIBUTE_REGEX, `style="${value} $1"`);
 								else updatedAttributes += ` style="${value}"`;
 							else updatedAttributes += ` ${key}="${value}"`;
 
 						return `<html${updatedAttributes}>`;
 					})
-					.replace(HEAD_CLOSE_REGEX, `\n${cachedData.scriptTag}\n${cachedData.ssrTags}</head>`)
-					.replaceAll(FORCED_THEME_META_REGEX, "");
+					.replace(HEAD_CLOSE_REGEX, `${cachedData.scriptTag}${cachedData.ssrTags.join("")}</head>`)
+					.replaceAll(FORCE_THEME_META_REGEX, "");
 			},
 		});
 	};

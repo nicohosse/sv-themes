@@ -190,6 +190,7 @@ afterEach(() => {
 
 	vi.clearAllMocks();
 	vi.clearAllTimers();
+	vi.resetModules();
 
 	clearDocumentCookies();
 	resetTestEnv();
