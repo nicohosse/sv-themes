@@ -50,6 +50,12 @@ export type ThemeManagerConfig<Themes extends ThemeRecord = ThemeRecord> = Omit<
 	systemThemes?: SystemThemesConfig<Themes>;
 } & Partial<Pick<ThemeManager<Themes>, "attributes">>;
 
+/**
+ * Instantiates and validates the reactive theme manager state.
+ *
+ * @param config - Initial configuration.
+ * @returns A `Result` containing the active `ThemeManager` or a list of validation errors.
+ */
 export function createThemeManager<const Themes extends ThemeRecord>(
 	config: ThemeManagerConfig<Themes>,
 ): Result<ThemeManager<Themes>, ThemeManagerError[]> {
@@ -333,6 +339,13 @@ export function createThemeManager<const Themes extends ThemeRecord>(
 	return ok(themeManager);
 }
 
+/**
+ * Helper that instantiates the theme manager and returns Svelte context and DOM registration functions.
+ * Prefer this helper in SvelteKit applications and root layouts.
+ *
+ * @param config - Initial configuration.
+ * @returns A `Result` containing the manager and its registration lifecycle function or a list of validation errors.
+ */
 export function createAppThemeManager<const Themes extends ThemeRecord>(
 	config: ThemeManagerConfig<Themes>,
 ): Result<

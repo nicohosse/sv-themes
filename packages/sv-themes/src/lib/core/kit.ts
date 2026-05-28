@@ -14,7 +14,18 @@ import {
 } from "./server.js";
 import type { ThemeRecord } from "./theme/theme.js";
 
-export function createThemeHandle<Themes extends ThemeRecord>(themeManager: ThemeManager<Themes>): Handle {
+/**
+ * SvelteKit server-side handle hook that intercepts page requests to inject theme variables.
+ * Resolves scoped theme overrides and injects the bootloader script.
+ *
+ * @param themeManager - The active theme manager instance.
+ * @param cspNonce - The nonce for the bootloader script.
+ * @returns A SvelteKit `Handle` middleware function.
+ */
+export function createThemeHandle<Themes extends ThemeRecord>(
+	themeManager: ThemeManager<Themes>,
+	cspNonce?: string,
+): Handle {
 	return async ({ event, resolve }) => {
 		const persistedTheme = await getPersistedTheme(themeManager, {
 			serverSideOnly: true,
@@ -23,7 +34,7 @@ export function createThemeHandle<Themes extends ThemeRecord>(themeManager: Them
 
 		if (persistedTheme) themeManager.setTheme(persistedTheme, false);
 
-		const cspNonce = event.locals?.cspNonce;
+		const resolvedCspNonce = cspNonce ?? event.locals?.svThemesScriptNonce;
 
 		let cachedData: {
 			ssrAttributes: ReturnType<typeof getSSRAttributes>;
@@ -45,7 +56,7 @@ export function createThemeHandle<Themes extends ThemeRecord>(themeManager: Them
 					const ssrTags = getSSRTags(themeManager);
 
 					const scriptContent = getThemeScript({ ...themeManager });
-					const scriptTag = `<script${cspNonce ? ` nonce="${cspNonce}"` : ""}>${scriptContent}</script>`;
+					const scriptTag = `<script${resolvedCspNonce ? ` nonce="${resolvedCspNonce}"` : ""}>${scriptContent}</script>`;
 
 					cachedData = {
 						ssrAttributes,

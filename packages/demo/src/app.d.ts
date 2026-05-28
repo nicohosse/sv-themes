@@ -4,7 +4,7 @@ declare global {
 	namespace App {
 		// interface Error {}
 		interface Locals {
-			cspNonce?: string;
+			svThemesScriptNonce?: string;
 		}
 		// interface PageData {}
 		// interface PageState {}

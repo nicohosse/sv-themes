@@ -5,7 +5,7 @@ import { themeManager } from "$lib/theme-manager.svelte";
 
 const nonceHandle: Handle = async ({ event, resolve }) => {
 	const nonce = Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64");
-	event.locals.cspNonce = nonce;
+	event.locals.svThemesScriptNonce = nonce;
 
 	return await resolve(event, {
 		transformPageChunk: ({ html }) => {
