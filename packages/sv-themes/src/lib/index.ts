@@ -2,7 +2,7 @@ export { themeSelector } from "./actions/theme-selector.svelte.js";
 
 export { default as ForceTheme } from "./components/force-theme/ForceTheme.svelte";
 
-export type { LibError } from "./core/errors.js";
+export type { LibError } from "./core/index.js";
 
 export {
 	createThemes,
@@ -14,13 +14,12 @@ export {
 export {
 	type AfterThemeChangeEvent,
 	type BeforeThemeChangeEvent,
-	createThemeManager,
+	createAppThemeManager,
 	DEFAULT_STORAGE_HYBRID,
 	type ForcedThemeEvent,
 	getPersistedTheme,
 	HYBRID_STORAGE_METHODS,
 	persistTheme,
-	registerThemeManager,
 	type StorageMethod,
 	type StorageOptions,
 	type SystemTheme,

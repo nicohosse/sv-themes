@@ -3,6 +3,7 @@ import type { ThemeRecord } from "$lib/index.js";
 import type { CookieOptions } from "$lib/utils/cookie.js";
 import type { ThemeManagerError } from "./errors.js";
 import type { Listener, ThemeManagerEvents } from "./events.js";
+import type { ForceThemeRegistry } from "./force-theme-registry.svelte.js";
 
 export type ThemeAttribute = "class" | `data-${string}`;
 
@@ -81,7 +82,11 @@ export interface ThemeManager<Themes extends ThemeRecord = ThemeRecord> {
 		handler: Listener<ThemeManagerEvents<Themes>[Event]>,
 	) => () => void;
 
+	readonly enableLogging?: boolean;
+
 	[INTERNAL]: Readonly<{
+		forceThemeRegistry: ForceThemeRegistry;
+
 		setSystemTheme: (systemTheme: SystemTheme) => ResultAsync<void, ThemeManagerError>;
 		setUseSystemTheme: (useSystemTheme: boolean) => Result<void, ThemeManagerError>;
 

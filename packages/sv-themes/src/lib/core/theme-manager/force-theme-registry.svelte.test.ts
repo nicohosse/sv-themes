@@ -1,83 +1,73 @@
 import { flushSync } from "svelte";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createForceThemeRegistry, type ForceThemeRegistry } from "./force-theme-requests-context.svelte.js";
-
-let forceThemeRegistry: ForceThemeRegistry;
-
-beforeEach(() => {
-	forceThemeRegistry = createForceThemeRegistry();
-});
+import {
+	createForceThemeRegistry,
+	type ForceThemeRegistry,
+	type ForceThemeRequest,
+	isBlockedByAncestor,
+} from "$lib/core/theme-manager/force-theme-registry.svelte.js";
 
 describe("isBlockedByAncestor", () => {
 	it("returns false if there is no parent ID", () => {
-		const id = Symbol();
-
-		forceThemeRegistry.register({
-			id,
-			forcedTheme: "dark",
+		const request: ForceThemeRequest = {
+			id: Symbol(),
 			priority: 0,
 			overrideChildren: false,
-		});
+			timestamp: Date.now(),
+		};
 
-		flushSync();
+		const requestMap = new Map<symbol, ForceThemeRequest>([[request.id, request]]);
 
-		const result = forceThemeRegistry.dominantForcedTheme;
+		const result = isBlockedByAncestor(request, requestMap);
 
-		expect(result).toBe("dark");
-
-		forceThemeRegistry.unregister(id);
+		expect(result).toBe(false);
 	});
 
 	it("returns false if parent is not registered", () => {
 		const parentId = Symbol();
-		const id = Symbol();
 
-		forceThemeRegistry.register({
-			id,
+		const request: ForceThemeRequest = {
+			id: Symbol(),
 			parentId,
-			forcedTheme: "dark",
 			priority: 0,
 			overrideChildren: false,
-		});
+			timestamp: Date.now(),
+		};
 
-		flushSync();
+		const requestMap = new Map<symbol, ForceThemeRequest>([[request.id, request]]);
 
-		const result = forceThemeRegistry.dominantForcedTheme;
+		const result = isBlockedByAncestor(request, requestMap);
 
-		expect(result).toBe("dark");
-
-		forceThemeRegistry.unregister(id);
+		expect(result).toBe(false);
 	});
 
 	it("returns true if parent overrides children", () => {
 		const parentId = Symbol();
 		const id = Symbol();
 
-		forceThemeRegistry.register({
+		const parentRequest: ForceThemeRequest = {
 			id: parentId,
-			forcedTheme: "light",
 			priority: 0,
 			overrideChildren: true,
-		});
+			timestamp: Date.now(),
+		};
 
-		flushSync();
-
-		forceThemeRegistry.register({
+		const request: ForceThemeRequest = {
 			id,
 			parentId,
-			forcedTheme: "dark",
 			priority: 1,
 			overrideChildren: false,
-		});
+			timestamp: Date.now(),
+		};
 
-		flushSync();
+		const requestMap = new Map<symbol, ForceThemeRequest>([
+			[parentId, parentRequest],
+			[id, request],
+		]);
 
-		const result = forceThemeRegistry.dominantForcedTheme;
+		const result = isBlockedByAncestor(request, requestMap);
 
-		expect(result).toBe("light");
-
-		forceThemeRegistry.unregister(parentId);
-		forceThemeRegistry.unregister(id);
+		expect(result).toBe(true);
 	});
 
 	it("returns true if grandparent overrides children", () => {
@@ -85,42 +75,38 @@ describe("isBlockedByAncestor", () => {
 		const parentId = Symbol();
 		const id = Symbol();
 
-		forceThemeRegistry.register({
+		const grandparentRequest: ForceThemeRequest = {
 			id: grandparentId,
-			forcedTheme: "light",
 			priority: 0,
 			overrideChildren: true,
-		});
+			timestamp: Date.now(),
+		};
 
-		flushSync();
-
-		forceThemeRegistry.register({
+		const parentRequest: ForceThemeRequest = {
 			id: parentId,
 			parentId: grandparentId,
-			forcedTheme: "dark",
 			priority: 0,
 			overrideChildren: false,
-		});
+			timestamp: Date.now(),
+		};
 
-		flushSync();
-
-		forceThemeRegistry.register({
+		const request: ForceThemeRequest = {
 			id,
 			parentId,
-			forcedTheme: "custom",
 			priority: 1,
 			overrideChildren: false,
-		});
+			timestamp: Date.now(),
+		};
 
-		flushSync();
+		const requestMap = new Map<symbol, ForceThemeRequest>([
+			[grandparentId, grandparentRequest],
+			[parentId, parentRequest],
+			[id, request],
+		]);
 
-		const result = forceThemeRegistry.dominantForcedTheme;
+		const result = isBlockedByAncestor(request, requestMap);
 
-		expect(result).toBe("light");
-
-		forceThemeRegistry.unregister(grandparentId);
-		forceThemeRegistry.unregister(parentId);
-		forceThemeRegistry.unregister(id);
+		expect(result).toBe(true);
 	});
 
 	it("returns false if no ancestor overrides children", () => {
@@ -128,46 +114,48 @@ describe("isBlockedByAncestor", () => {
 		const parentId = Symbol();
 		const id = Symbol();
 
-		forceThemeRegistry.register({
+		const grandparentRequest: ForceThemeRequest = {
 			id: grandparentId,
-			forcedTheme: "light",
 			priority: 0,
 			overrideChildren: false,
-		});
+			timestamp: Date.now(),
+		};
 
-		flushSync();
-
-		forceThemeRegistry.register({
+		const parentRequest: ForceThemeRequest = {
 			id: parentId,
 			parentId: grandparentId,
-			forcedTheme: "dark",
 			priority: 1,
 			overrideChildren: false,
-		});
+			timestamp: Date.now(),
+		};
 
-		flushSync();
-
-		forceThemeRegistry.register({
+		const request: ForceThemeRequest = {
 			id,
 			parentId,
-			forcedTheme: "custom",
 			priority: 2,
 			overrideChildren: false,
-		});
+			timestamp: Date.now(),
+		};
 
-		flushSync();
+		const requestMap = new Map<symbol, ForceThemeRequest>([
+			[grandparentId, grandparentRequest],
+			[parentId, parentRequest],
+			[id, request],
+		]);
 
-		const result = forceThemeRegistry.dominantForcedTheme;
+		const result = isBlockedByAncestor(request, requestMap);
 
-		expect(result).toBe("custom");
-
-		forceThemeRegistry.unregister(grandparentId);
-		forceThemeRegistry.unregister(parentId);
-		forceThemeRegistry.unregister(id);
+		expect(result).toBe(false);
 	});
 });
 
 describe("dominantForcedTheme", () => {
+	let forceThemeRegistry: ForceThemeRegistry;
+
+	beforeEach(() => {
+		forceThemeRegistry = createForceThemeRegistry();
+	});
+
 	it("returns undefined when requests array is empty", () => {
 		expect(forceThemeRegistry.dominantForcedTheme).toBeUndefined();
 	});
@@ -293,6 +281,12 @@ describe("dominantForcedTheme", () => {
 });
 
 describe("register", () => {
+	let forceThemeRegistry: ForceThemeRegistry;
+
+	beforeEach(() => {
+		forceThemeRegistry = createForceThemeRegistry();
+	});
+
 	it("pushes a new request when ID does not exist", () => {
 		const id = Symbol();
 
@@ -474,6 +468,12 @@ describe("register", () => {
 });
 
 describe("unregister", () => {
+	let forceThemeRegistry: ForceThemeRegistry;
+
+	beforeEach(() => {
+		forceThemeRegistry = createForceThemeRegistry();
+	});
+
 	it("removes a request by its symbol ID", () => {
 		const id = Symbol();
 

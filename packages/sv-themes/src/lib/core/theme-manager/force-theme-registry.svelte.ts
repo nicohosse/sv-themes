@@ -1,4 +1,4 @@
-import { createContext, untrack } from "svelte";
+import { untrack } from "svelte";
 
 export interface ForceThemeRequest {
 	id: symbol;
@@ -15,23 +15,23 @@ export interface ForceThemeRegistry {
 	readonly unregister: (id: symbol) => void;
 }
 
+export function isBlockedByAncestor(request: ForceThemeRequest, requestMap: Map<symbol, ForceThemeRequest>) {
+	let current = request.parentId;
+
+	while (current) {
+		const parent = requestMap.get(current);
+
+		if (!parent) break;
+		if (parent.overrideChildren) return true;
+
+		current = parent.parentId;
+	}
+
+	return false;
+}
+
 export function createForceThemeRegistry(): ForceThemeRegistry {
 	let requests = $state<ForceThemeRequest[]>([]);
-
-	function isBlockedByAncestor(request: ForceThemeRequest, requestMap: Map<symbol, ForceThemeRequest>) {
-		let current = request.parentId;
-
-		while (current) {
-			const parent = requestMap.get(current);
-
-			if (!parent) break;
-			if (parent.overrideChildren) return true;
-
-			current = parent.parentId;
-		}
-
-		return false;
-	}
 
 	const dominantForcedTheme = $derived.by(() => {
 		if (requests.length === 0) return undefined;
@@ -79,27 +79,3 @@ export function createForceThemeRegistry(): ForceThemeRegistry {
 		},
 	};
 }
-
-const [internalGetForceThemeRegistry, internalSetForceThemeRegistry] = createContext<ForceThemeRegistry>();
-
-export const getForceThemeRegistry = () => {
-	try {
-		return internalGetForceThemeRegistry();
-	} catch {
-		return undefined;
-	}
-};
-
-export const setForceThemeRegistry = internalSetForceThemeRegistry;
-
-const [internalGetForceThemeParentId, internalSetForceThemeParentId] = createContext<symbol>();
-
-export const getForceThemeParentId = () => {
-	try {
-		return internalGetForceThemeParentId();
-	} catch {
-		return undefined;
-	}
-};
-
-export const setForceThemeParentId = internalSetForceThemeParentId;

@@ -1,4 +1,8 @@
-export { createThemeManager, type ThemeManagerConfig } from "./create-theme-manager.svelte.js";
+export {
+	createAppThemeManager,
+	createThemeManager,
+	type ThemeManagerConfig,
+} from "./create-theme-manager.svelte.js";
 
 export {
 	cleanupThemeClasses,
@@ -23,6 +27,13 @@ export type {
 	UnforcedThemeEvent,
 } from "./events.js";
 
+export {
+	createForceThemeRegistry,
+	type ForceThemeRegistry,
+	type ForceThemeRequest,
+	isBlockedByAncestor,
+} from "./force-theme-registry.svelte.js";
+
 export { getPersistedTheme, persistTheme } from "./persistence.js";
 
 export { type ResolvedThemeManagerConfig, resolveThemeManagerConfig } from "./resolver.js";
@@ -44,6 +55,6 @@ export {
 export {
 	validateRequestedTheme,
 	validateSystemTheme,
-	validateTheme,
 	validateThemeManagerConfig,
+	validateThemes,
 } from "./validators.js";

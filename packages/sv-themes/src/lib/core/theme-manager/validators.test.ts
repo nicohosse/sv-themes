@@ -1,4 +1,3 @@
-import { err } from "neverthrow";
 import { describe, expect, it } from "vitest";
 import { createThemes, DEFAULT_THEMES, type ThemeRecord } from "$lib/index.js";
 import { expectOk } from "$lib/tests/setup.js";

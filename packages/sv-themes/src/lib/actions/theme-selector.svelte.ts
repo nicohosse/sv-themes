@@ -1,4 +1,5 @@
 import type { ActionReturn } from "svelte/action";
+import { logError } from "$lib/core/index.js";
 import type { ThemeManager, ThemeRecord } from "$lib/index.js";
 
 type ThemeSelectorParams<Themes extends ThemeRecord> = {
@@ -22,7 +23,7 @@ export function themeSelector<Themes extends ThemeRecord>(
 
 	const onClick = async () => {
 		const result = await themeManager.setTheme(themeId);
-		if (result.isErr()) console.error(result.error.message);
+		if (result.isErr()) logError(result.error.message, themeManager);
 	};
 
 	node.addEventListener("click", onClick);

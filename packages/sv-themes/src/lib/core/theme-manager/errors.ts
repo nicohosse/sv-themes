@@ -1,8 +1,10 @@
-import type { BaseError } from "../errors.js";
+import type { BaseError } from "../index.js";
 import type { SystemTheme } from "./theme-manager.js";
 
 export type ThemeManagerError = BaseError &
 	(
+		| { id: "AlreadyRegistered" }
+		| { id: "NotRegistered" }
 		| { id: "ThemeNotFound"; theme: string }
 		| { id: "NoThemes" }
 		| { id: "DuplicateTheme"; theme: string }
@@ -16,6 +18,16 @@ export type ThemeManagerError = BaseError &
 	);
 
 export const ThemeManagerError = {
+	alreadyRegistered: {
+		id: "AlreadyRegistered",
+		message: "A theme manager has already been registered.",
+	} as const satisfies ThemeManagerError,
+
+	notRegistered: {
+		id: "NotRegistered",
+		message: "No theme manager has been registered.",
+	} as const satisfies ThemeManagerError,
+
 	themeNotFound(theme: string): ThemeManagerError {
 		return {
 			id: "ThemeNotFound",

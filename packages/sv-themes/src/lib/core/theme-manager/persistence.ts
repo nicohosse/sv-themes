@@ -2,6 +2,7 @@ import type { Cookies } from "@sveltejs/kit";
 import { BROWSER } from "esm-env";
 import type { ThemeRecord } from "$lib/index.js";
 import { getCookie, setCookie } from "$lib/utils/cookie.js";
+import { logError } from "../index.js";
 import { STORAGE_METHOD_PRIORITY, type StorageMethod, type ThemeManager } from "./theme-manager.js";
 
 export async function getPersistedTheme<const Themes extends ThemeRecord>(
@@ -33,8 +34,9 @@ export async function getPersistedTheme<const Themes extends ThemeRecord>(
 
 			if (!storedTheme) {
 				if (config?.errorOnMiss)
-					console.error(
+					logError(
 						`Failed to get theme from local storage. ${config?.syncOnMiss ? "Marking as desynced" : "Skipping"}.`,
+						themeManager,
 					);
 
 				continue;
@@ -43,14 +45,15 @@ export async function getPersistedTheme<const Themes extends ThemeRecord>(
 			persistedThemes.set(storageMethod, storedTheme);
 			dominantTheme = storedTheme ?? dominantTheme;
 		} else if (!BROWSER && isLocalStorage && !config?.serverSideOnly)
-			console.error(`Tried to get theme from local storage from a non-browser context. Skipping.`);
+			logError(`Tried to get theme from local storage from a non-browser context. Skipping.`, themeManager);
 		else if (BROWSER && isSessionStorage && !config?.serverSideOnly) {
 			const storedTheme = globalThis.sessionStorage.getItem(themeManager.storage.key);
 
 			if (!storedTheme) {
 				if (config?.errorOnMiss)
-					console.error(
+					logError(
 						`Failed to get theme from session storage. ${config?.syncOnMiss ? "Marking as desynced" : "Skipping"}.`,
+						themeManager,
 					);
 
 				continue;
@@ -59,13 +62,16 @@ export async function getPersistedTheme<const Themes extends ThemeRecord>(
 			persistedThemes.set(storageMethod, storedTheme);
 			dominantTheme = storedTheme ?? dominantTheme;
 		} else if (!BROWSER && isSessionStorage && !config?.serverSideOnly)
-			console.error(`Tried to get theme from session storage from a non-browser context. Skipping.`);
+			logError(`Tried to get theme from session storage from a non-browser context. Skipping.`, themeManager);
 		else if (isCookie) {
 			const storedTheme = await getCookie(themeManager.storage.cookie.name, config?.cookies);
 
 			if (!storedTheme) {
 				if (config?.errorOnMiss)
-					console.error(`Failed to get theme from cookie. ${config?.syncOnMiss ? "Marking as desynced" : "Skipping"}.`);
+					logError(
+						`Failed to get theme from cookie. ${config?.syncOnMiss ? "Marking as desynced" : "Skipping"}.`,
+						themeManager,
+					);
 
 				continue;
 			}
@@ -108,11 +114,11 @@ export async function persistTheme<const Themes extends ThemeRecord>(
 
 	if (BROWSER && useLocalStorage) globalThis.localStorage.setItem(themeManager.storage.key, themeId);
 	else if (!BROWSER && useLocalStorage)
-		console.error(`Tried to save theme '${themeId}' to local storage in a non-browser context. Skipping.`);
+		logError(`Tried to save theme '${themeId}' to local storage in a non-browser context. Skipping.`, themeManager);
 
 	if (BROWSER && useSessionStorage) globalThis.sessionStorage.setItem(themeManager.storage.key, themeId);
 	else if (!BROWSER && useSessionStorage)
-		console.error(`Tried to save theme '${themeId}' to session storage in a non-browser context. Skipping.`);
+		logError(`Tried to save theme '${themeId}' to session storage in a non-browser context. Skipping.`, themeManager);
 
 	if (useCookie) await setCookie(themeId, themeManager.storage.cookie, cookies);
 }

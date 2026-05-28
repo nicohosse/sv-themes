@@ -1,11 +1,9 @@
 <script lang="ts" generics="const Themes extends ThemeRecord">
 	import { BROWSER } from "esm-env";
 	import type { Snippet } from "svelte";
-	import {
-		getForceThemeParentId,
-		getForceThemeRegistry,
-		setForceThemeParentId,
-	} from "$lib/contexts/force-theme-requests-context.svelte.js";
+	import { getForceThemeParentId, setForceThemeParentId } from "$lib/contexts/force-theme-parent-id-context.svelte.js";
+	import { getThemeManager } from "$lib/contexts/theme-manager-context.svelte.js";
+	import { INTERNAL as THEME_MANAGER_INTERNAL } from "$lib/core/theme-manager/theme-manager.js";
 	import type { ThemeRecord } from "$lib/index.js";
 
 	interface ForceThemeProps<Themes extends ThemeRecord> {
@@ -22,10 +20,10 @@
 
 	setForceThemeParentId(id);
 
-	let forceThemeRegistry = getForceThemeRegistry();
+	let themeManager = getThemeManager();
 
 	$effect.pre(() => {
-		forceThemeRegistry?.register({
+		themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.register({
 			id: id,
 			parentId,
 			forcedTheme: forcedTheme?.toString(),
@@ -33,7 +31,7 @@
 			overrideChildren,
 		});
 
-		return () => forceThemeRegistry?.unregister(id);
+		return () => themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.unregister(id);
 	});
 </script>
 

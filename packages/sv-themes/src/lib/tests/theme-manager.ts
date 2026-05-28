@@ -30,6 +30,7 @@ export const MOCK_THEME_MANAGER_CONFIG: ThemeManagerConfig<typeof DEFAULT_THEMES
 	systemThemes: {
 		kind: "enabled",
 	},
+	enableLogging: true,
 } as const;
 
 export function createMockThemeManagerConfig(

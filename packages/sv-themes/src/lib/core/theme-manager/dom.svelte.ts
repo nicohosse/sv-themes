@@ -1,13 +1,8 @@
 import { BROWSER } from "esm-env";
 import { untrack } from "svelte";
-import {
-	createForceThemeRegistry,
-	type ForceThemeRegistry,
-	getForceThemeRegistry,
-	setForceThemeRegistry,
-} from "$lib/contexts/force-theme-requests-context.svelte.js";
 import type { ThemeRecord } from "$lib/index.js";
 import { resolveCssColor } from "$lib/utils/resolve-css-color.js";
+import { logError } from "../index.js";
 import { getPersistedTheme, persistTheme } from "./persistence.js";
 import { INTERNAL as THEME_MANAGER_INTERNAL, type ThemeManager } from "./theme-manager.js";
 
@@ -54,8 +49,9 @@ export function updateMetaTags<const Themes extends ThemeRecord>(themeManager: T
 
 		if (computedColor) resolvedColor = computedColor;
 		else {
-			console.error(
+			logError(
 				`The color of theme '${resolvedTheme.id}' couldn't be resolved. Removing theme-color meta element.`,
+				themeManager,
 			);
 
 			themeColorMetaElement?.remove();
@@ -121,7 +117,7 @@ export function registerMediaListener<const Themes extends ThemeRecord>(themeMan
 	const onChange = (event: MediaQueryListEvent) => {
 		currentPromise = currentPromise.then(async () => {
 			const result = await updateSystemTheme(event.matches);
-			if (result.isErr()) console.error(result.error.message);
+			if (result.isErr()) logError(result.error.message, themeManager);
 		});
 	};
 
@@ -158,8 +154,9 @@ export function registerStorageListener<const Themes extends ThemeRecord>(themeM
 			const result = await themeManager.setTheme(storageTheme);
 			if (result.isOk()) return;
 
-			console.error(
+			logError(
 				`Invalid theme found in ${isLocalStorage ? "local" : "session"} storage: ${result.error.message}\nAuto-fixing...`,
+				themeManager,
 			);
 
 			await persistTheme(themeManager, themeManager.selectedTheme);
@@ -174,9 +171,6 @@ export function registerStorageListener<const Themes extends ThemeRecord>(themeM
 }
 
 export function registerThemeManager<const Themes extends ThemeRecord>(themeManager: ThemeManager<Themes>) {
-	const forceThemeRegistry = getForceThemeRegistry() ?? createForceThemeRegistry();
-	setForceThemeRegistry(forceThemeRegistry);
-
 	$effect.pre(() => {
 		const removeStorageListener = registerStorageListener(themeManager);
 		const removeMediaListener = registerMediaListener(themeManager);
@@ -194,13 +188,16 @@ export function registerThemeManager<const Themes extends ThemeRecord>(themeMana
 	let currentSetForcedThemePromise = Promise.resolve();
 
 	$effect.pre(() => {
-		const dominantForcedTheme = forceThemeRegistry.dominantForcedTheme as keyof Themes | "system" | undefined;
+		const dominantForcedTheme = themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.dominantForcedTheme as
+			| keyof Themes
+			| "system"
+			| undefined;
 
 		untrack(() => {
 			if (themeManager.forcedTheme !== dominantForcedTheme)
 				currentSetForcedThemePromise = currentSetForcedThemePromise.then(async () => {
 					const result = await themeManager.setForcedTheme(dominantForcedTheme);
-					if (result.isErr()) console.error(result.error.message);
+					if (result.isErr()) logError(result.error.message, themeManager);
 				});
 		});
 	});

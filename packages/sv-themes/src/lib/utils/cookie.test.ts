@@ -68,13 +68,13 @@ describe("setCookie", () => {
 
 		await setCookie("test-value", { name: "test-cookie" }, cookies as unknown as Cookies);
 
-		expect(cookies.set.mock.calls[0][2].secure).toBe(true);
+		expect(cookies.set.mock.calls[0][2]?.secure).toBe(true);
 
 		vi.stubGlobal("isSecureContext", false);
 
 		await setCookie("test-value", { name: "test-cookie" }, cookies as unknown as Cookies);
 
-		expect(cookies.set.mock.calls[1][2].secure).toBe(false);
+		expect(cookies.set.mock.calls[1][2]?.secure).toBe(false);
 	});
 
 	it("sets secure as undefined in SSR environment", async () => {
@@ -84,9 +84,7 @@ describe("setCookie", () => {
 
 		await setCookie("test-value", { name: "test-cookie" }, cookies as unknown as Cookies);
 
-		const options = cookies.set.mock.calls[0][2];
-
-		expect(options.secure).toBeUndefined();
+		expect(cookies.set.mock.calls[0][2]?.secure).toBeUndefined();
 	});
 
 	it("encodes and applies full cookie attributes in document fallback", async () => {

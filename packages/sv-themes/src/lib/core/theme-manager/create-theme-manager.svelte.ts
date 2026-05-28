@@ -1,5 +1,7 @@
 import { err, errAsync, ok, okAsync, type Result, ResultAsync } from "neverthrow";
+import { setThemeManager } from "$lib/contexts/theme-manager-context.svelte.js";
 import type { ThemeRecord } from "$lib/index.js";
+import { registerThemeManager } from "./dom.svelte.js";
 import { ThemeManagerError } from "./errors.js";
 import type {
 	AfterThemeChangeEvent,
@@ -9,6 +11,7 @@ import type {
 	SystemThemeChangeEvent,
 	ThemeManagerEvents,
 } from "./events.js";
+import { createForceThemeRegistry } from "./force-theme-registry.svelte.js";
 import { persistTheme } from "./persistence.js";
 import { resolveThemeManagerConfig } from "./resolver.js";
 import {
@@ -250,6 +253,8 @@ export function createThemeManager<const Themes extends ThemeRecord>(
 
 	const hasListeners = <Event extends keyof Events>(event: Event) => event in listeners;
 
+	const forceThemeRegistry = createForceThemeRegistry();
+
 	const themeManager: ThemeManager<Themes> = {
 		themes: resolvedConfig.themes,
 		themeIds,
@@ -310,7 +315,11 @@ export function createThemeManager<const Themes extends ThemeRecord>(
 
 		on,
 
+		enableLogging: resolvedConfig.enableLogging,
+
 		[THEME_MANAGER_INTERNAL]: {
+			forceThemeRegistry,
+
 			setSystemTheme,
 			setUseSystemTheme,
 
@@ -322,4 +331,30 @@ export function createThemeManager<const Themes extends ThemeRecord>(
 	};
 
 	return ok(themeManager);
+}
+
+export function createAppThemeManager<const Themes extends ThemeRecord>(
+	config: ThemeManagerConfig<Themes>,
+): Result<
+	{ themeManager: ThemeManager<Themes>; registerThemeManager: () => Result<void, ThemeManagerError> },
+	ThemeManagerError[]
+> {
+	const themeManagerResult = createThemeManager(config);
+	if (themeManagerResult.isErr()) return err(themeManagerResult.error);
+
+	const themeManager = themeManagerResult.value;
+
+	const registerAppThemeManager = (): Result<void, ThemeManagerError> => {
+		const contextResult = setThemeManager(themeManager);
+		if (contextResult.isErr()) return contextResult;
+
+		registerThemeManager(themeManager);
+
+		return ok();
+	};
+
+	return ok({
+		themeManager,
+		registerThemeManager: registerAppThemeManager,
+	});
 }

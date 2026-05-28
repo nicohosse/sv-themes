@@ -1,11 +1,14 @@
+import * as svelte from "svelte";
 import { describe, expect, it, vi } from "vitest";
+import { THEME_MANAGER_CONTEXT_SYMBOL } from "$lib/contexts/theme-manager-context.svelte.js";
 import { expectOk } from "$lib/tests/setup.js";
 import {
 	createMockThemeManagerConfig,
 	INVALID_THEME_MANAGER_CONFIG_CASES,
 	MOCK_THEME_MANAGER_CONFIG,
 } from "$lib/tests/theme-manager.js";
-import { createThemeManager, type ThemeManagerConfig } from "./create-theme-manager.svelte.js";
+import { createAppThemeManager, createThemeManager, type ThemeManagerConfig } from "./create-theme-manager.svelte.js";
+import * as domModule from "./dom.svelte.js";
 import { ThemeManagerError } from "./errors.js";
 import * as persistenceModule from "./persistence.js";
 import { INTERNAL as THEME_MANAGER_INTERNAL } from "./theme-manager.js";
@@ -13,6 +16,12 @@ import { INTERNAL as THEME_MANAGER_INTERNAL } from "./theme-manager.js";
 describe("createThemeManager", () => {
 	it("returns Ok with valid config", () => {
 		expect(createThemeManager(MOCK_THEME_MANAGER_CONFIG)).toBeOk();
+	});
+
+	it("should have identical themes and themeIds keys", () => {
+		const themeManager = expectOk(createThemeManager(createMockThemeManagerConfig()));
+
+		expect(Object.keys(themeManager.themes)).toEqual(themeManager.themeIds);
 	});
 
 	it.each(INVALID_THEME_MANAGER_CONFIG_CASES)("rejects: $name", ({ config, expectedError }) => {
@@ -394,6 +403,69 @@ describe("createThemeManager", () => {
 			const result = themeManager[THEME_MANAGER_INTERNAL].hasListeners("forced");
 
 			expect(result).toBe(true);
+		});
+	});
+});
+
+describe("createAppThemeManager", () => {
+	it("returns Err when config is invalid", () => {
+		const result = createAppThemeManager(
+			createMockThemeManagerConfig(
+				{
+					useSystemTheme: true,
+					systemThemes: { kind: "disabled" },
+				},
+				false,
+			),
+		);
+
+		expect(result).toBeErr("SystemThemesDisabled");
+	});
+
+	it("returns Ok with valid config", () => {
+		const result = createAppThemeManager(MOCK_THEME_MANAGER_CONFIG);
+
+		expect(result).toBeOk();
+	});
+
+	it("creates theme manager and returns themeManager object and registerThemeManager function", () => {
+		const result = createAppThemeManager(MOCK_THEME_MANAGER_CONFIG);
+
+		expect(result).toBeOk();
+
+		const { themeManager, registerThemeManager } = expectOk(result);
+
+		expect(themeManager).toBeTypeOf("object");
+		expect(registerThemeManager).toBeTypeOf("function");
+	});
+
+	describe("registerThemeManager", () => {
+		it("returns Err AlreadyRegistered error if a theme manager is already registered", () => {
+			const hasContextSpy = vi.spyOn(svelte, "hasContext").mockReturnValue(true);
+
+			const createManagerResult = expectOk(createAppThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+			const result = createManagerResult.registerThemeManager();
+
+			expect(result).toBeErr(ThemeManagerError.alreadyRegistered.id);
+			expect(hasContextSpy).toHaveBeenCalledWith(THEME_MANAGER_CONTEXT_SYMBOL);
+		});
+
+		it("sets context and registers in DOM when not registered", () => {
+			const hasContextSpy = vi.spyOn(svelte, "hasContext").mockReturnValue(false);
+			const setContextSpy = vi.spyOn(svelte, "setContext").mockImplementation(() => {});
+			const registerThemeManagerSpy = vi.spyOn(domModule, "registerThemeManager");
+
+			const createManagerResult = expectOk(createAppThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+			$effect.root(() => {
+				const result = createManagerResult.registerThemeManager();
+
+				expect(result).toBeOk();
+				expect(hasContextSpy).toHaveBeenCalledWith(THEME_MANAGER_CONTEXT_SYMBOL);
+				expect(setContextSpy).toHaveBeenCalledWith(THEME_MANAGER_CONTEXT_SYMBOL, expect.any(Object));
+				expect(registerThemeManagerSpy).toHaveBeenCalledWith(expect.any(Object));
+			});
 		});
 	});
 });

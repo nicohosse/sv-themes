@@ -1,6 +1,7 @@
 import { flushSync } from "svelte";
 import { describe, expect, it, vi } from "vitest";
-import { createThemeManager, ThemeManagerError } from "$lib/index.js";
+import { createThemeManager } from "$lib/core/theme-manager/index.js";
+import { ThemeManagerError } from "$lib/index.js";
 import { expectOk } from "$lib/tests/setup.js";
 import { createMockThemeManagerConfig, MOCK_THEME_MANAGER_CONFIG } from "$lib/tests/theme-manager.js";
 import { themeSelector } from "./theme-selector.svelte.js";

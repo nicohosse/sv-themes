@@ -1,6 +1,6 @@
-import { createThemeManager, DEFAULT_THEMES } from "sv-themes";
+import { createAppThemeManager, DEFAULT_THEMES } from "sv-themes";
 
-export const themeManager = createThemeManager({
+export const { themeManager, registerThemeManager } = createAppThemeManager({
 	themes: DEFAULT_THEMES,
 	initialTheme: "light",
 	systemThemes: {
@@ -8,7 +8,7 @@ export const themeManager = createThemeManager({
 	},
 	useSystemTheme: true,
 }).match(
-	(themeManager) => themeManager,
+	(result) => result,
 	(errors) => {
 		throw new Error(JSON.stringify(errors.map((error) => error.message)));
 	},

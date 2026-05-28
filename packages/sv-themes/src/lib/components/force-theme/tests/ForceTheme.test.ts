@@ -1,36 +1,21 @@
 import { createRawSnippet, mount, unmount } from "svelte";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-	createForceThemeRegistry,
-	type ForceThemeRegistry,
-	getForceThemeRegistry,
-	setForceThemeRegistry,
-} from "$lib/contexts/force-theme-requests-context.svelte.js";
+import * as themeManagerContextModule from "$lib/contexts/theme-manager-context.svelte.js";
+import { createThemeManager } from "$lib/core/theme-manager/create-theme-manager.svelte.js";
+import { THEME_MANAGER_INTERNAL } from "$lib/core/theme-manager/index.js";
+import { expectOk } from "$lib/tests/setup.js";
 import { testEnv } from "$lib/tests/test-environment.js";
+import { MOCK_THEME_MANAGER_CONFIG } from "$lib/tests/theme-manager.js";
 import ForceTheme from "../ForceTheme.svelte";
 import NestedForceThemesFixture from "./NestedForceThemes.fixture.svelte";
 
-vi.mock("$lib/contexts/force-theme-requests-context.svelte.js", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("$lib/contexts/force-theme-requests-context.svelte.js")>();
-
-	return {
-		...actual,
-		getForceThemeRegistry: vi.fn(actual.getForceThemeRegistry),
-		setForceThemeRegistry: vi.fn(actual.setForceThemeRegistry),
-	};
-});
-
 describe("ForceTheme", () => {
-	let forceThemeRegistry: ForceThemeRegistry | undefined;
+	let themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
 	beforeEach(() => {
-		forceThemeRegistry = createForceThemeRegistry();
+		themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
-		vi.mocked(getForceThemeRegistry).mockImplementation(() => forceThemeRegistry);
-		vi.mocked(setForceThemeRegistry).mockImplementation((registry: ForceThemeRegistry) => {
-			forceThemeRegistry = registry;
-			return forceThemeRegistry;
-		});
+		vi.spyOn(themeManagerContextModule, "getThemeManager").mockImplementation(() => themeManager);
 	});
 
 	it("registers the theme and updates dominantForcedTheme", () => {
@@ -42,7 +27,7 @@ describe("ForceTheme", () => {
 			},
 		});
 
-		expect(forceThemeRegistry?.dominantForcedTheme).toBe("dark");
+		expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.dominantForcedTheme).toBe("dark");
 
 		unmount(component);
 	});
@@ -55,11 +40,11 @@ describe("ForceTheme", () => {
 			},
 		});
 
-		expect(forceThemeRegistry?.dominantForcedTheme).toBe("light");
+		expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.dominantForcedTheme).toBe("light");
 
 		unmount(component);
 
-		expect(forceThemeRegistry?.dominantForcedTheme).toBeUndefined();
+		expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.dominantForcedTheme).toBeUndefined();
 	});
 
 	it("blocks child themes when ancestor has overrideChildren enabled", () => {
@@ -74,7 +59,7 @@ describe("ForceTheme", () => {
 			},
 		});
 
-		expect(forceThemeRegistry?.dominantForcedTheme).toBe("light");
+		expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.dominantForcedTheme).toBe("light");
 
 		unmount(component);
 	});
@@ -91,7 +76,7 @@ describe("ForceTheme", () => {
 			},
 		});
 
-		expect(forceThemeRegistry?.dominantForcedTheme).toBe("dark");
+		expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.dominantForcedTheme).toBe("dark");
 
 		unmount(component);
 	});
@@ -101,7 +86,7 @@ describe("ForceTheme", () => {
 			target: document.body,
 		});
 
-		expect(forceThemeRegistry?.dominantForcedTheme).toBeUndefined();
+		expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.dominantForcedTheme).toBeUndefined();
 
 		unmount(component);
 	});

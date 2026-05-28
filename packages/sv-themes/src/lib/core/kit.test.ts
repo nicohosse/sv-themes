@@ -1,11 +1,12 @@
 import type { RequestEvent } from "@sveltejs/kit";
 import { describe, expect, it, vi } from "vitest";
-import { createThemeManager, ThemeManagerError } from "$lib/index.js";
+import { ThemeManagerError } from "$lib/index.js";
 import { createMockCookies } from "$lib/tests/cookie.js";
 import { expectOk } from "$lib/tests/setup.js";
 import { testEnv } from "$lib/tests/test-environment.js";
 import { MOCK_THEME_MANAGER_CONFIG } from "$lib/tests/theme-manager.js";
 import { createThemeHandle } from "./kit.js";
+import { createThemeManager } from "./theme-manager/index.js";
 
 describe("createThemeHandle", () => {
 	const EMPTY_HTML = "<html><head></head><body></body></html>";

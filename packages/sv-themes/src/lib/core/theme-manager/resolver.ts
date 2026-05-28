@@ -67,5 +67,6 @@ export function resolveThemeManagerConfig<const Themes extends ThemeRecord>(
 		storage: "storage" in config ? config.storage : DEFAULT_STORAGE_HYBRID,
 		enableTabSync: config.enableTabSync ?? true,
 		attributes: "attributes" in config ? (config.attributes ?? []) : ["class", "data-theme"],
+		enableLogging: "enableLogging" in config ? config.enableLogging : process.env.NODE_ENV === "production",
 	} satisfies ResolvedThemeManagerConfig<Themes>);
 }
