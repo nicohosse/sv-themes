@@ -21,17 +21,7 @@ A type-safe theme management library designed for **Svelte 5** and **SvelteKit**
 
 ## 🏗️ Architecture
 
-```mermaid
-flowchart TD
-    subgraph Server [Server-Side Render]
-        A[SvelteKit Hook] -->|Reads Cookie & Locals| B[Inject Initial Attributes]
-    end
-    subgraph Client [Client-Side Hydration]
-        C[Inline Bootloader Script] -->|Corrects Mismatch Pre-Paint| D[Svelte 5 Runes]
-        D -->|Mounts Observers & Hydrates| E[Theme Manager]
-    end
-    B -->|transformPageChunk| C
-```
+[![](https://mermaid.ink/img/pako:eNpdUsFu4jAQ_ZXRHPYUEElDAzmstISVWu2iIqh6aNKDiQfiJbHRxOluF_j3OkkVVZ2LPfa85_fGc8bcSMIY96X5mxeCLTwuMw0u6mZ3YHEqYEv8Sgxpv462ShJsSEvil76yjR_p9pVKS7-UhTtjji8wGn2_bEjIGhKXK4Jv8NvkoqwvsEjv9R_KbQ33WlklSngSrMSupPqD0tF_UZGUirSFtF97FXdvkoVVRn8SkjjuUmmChTG2NMLJhG3O6mR7SYlh7p5eqboSNi9gzTRaC6XtBZYfLmAKm0YPatpYduiVabTDPuzqrhm1M9WLIGfrZ_pYUEWwElochu4MVhYdg2Wh673hau1qkqLRxwsk6OGBlcR47_pDHlbElWhzPLfYDG1LnGHstlLwMcNMXx3oJPSzMRXGlhsHY9McioGkOUmna6mEa2A1nHL3c0nrA2PfDzoSjM_4D-MwmI7Dm1k09YNgEk1ufA_fMI7m47mLWRiFfuBP5uHVw__dq5PxLAq7u1s_mPrz0EOSyhpe9UPVzdb1HfM9xJI?type=png)](https://mermaid.live/edit#pako:eNpdUsFu4jAQ_ZXRHPYUEElDAzmstISVWu2iIqh6aNKDiQfiJbHRxOluF_j3OkkVVZ2LPfa85_fGc8bcSMIY96X5mxeCLTwuMw0u6mZ3YHEqYEv8Sgxpv462ShJsSEvil76yjR_p9pVKS7-UhTtjji8wGn2_bEjIGhKXK4Jv8NvkoqwvsEjv9R_KbQ33WlklSngSrMSupPqD0tF_UZGUirSFtF97FXdvkoVVRn8SkjjuUmmChTG2NMLJhG3O6mR7SYlh7p5eqboSNi9gzTRaC6XtBZYfLmAKm0YPatpYduiVabTDPuzqrhm1M9WLIGfrZ_pYUEWwElochu4MVhYdg2Wh673hau1qkqLRxwsk6OGBlcR47_pDHlbElWhzPLfYDG1LnGHstlLwMcNMXx3oJPSzMRXGlhsHY9McioGkOUmna6mEa2A1nHL3c0nrA2PfDzoSjM_4D-MwmI7Dm1k09YNgEk1ufA_fMI7m47mLWRiFfuBP5uHVw__dq5PxLAq7u1s_mPrz0EOSyhpe9UPVzdb1HfM9xJI)
 
 ---
 
@@ -67,13 +57,13 @@ export const APP_THEMES = createThemes([
 ]);
 ```
 
-> [!IMPORTANT]
+> **⚠️ Warning:**
 > **Theme Order & System Fallbacks:** The order of themes in the array defines their priority within their respective type. If system themes are enabled but explicit `mappings` are omitted, the first theme of type `"light"` and the first theme of type `"dark"` are automatically selected as the fallback targets for system preference resolution.
 
-> [!TIP]
+> **💡 Tip:**
 > **Flexible Color Values:** The `color` property supports standard CSS names (e.g., `green`), HEX codes (e.g., `#fff`), and CSS custom properties (variables) with optional fallbacks (e.g., `var(--nature, green)`).
 
-> [!TIP]
+> **💡 Tip:**
 > **Automatic `<meta name="color-scheme">` Resolution:** If `useColorScheme` is enabled, the library automatically manages the `<meta name="color-scheme">` element. Its content resolves to `'light dark'`, `'dark light'`, `'light'`, or `'dark'` depending on the types of your registered themes and the type of the *first* theme in your config. This prevents unstyled UI flashes (such as scrollbars) instantly on load.
 
 ### Types
@@ -89,14 +79,14 @@ export interface Theme {
 export type ThemeRecord<Keys extends string = string> = Record<Keys, Readonly<Theme>>;
 ```
 
-> [!WARNING]
+> **⚠️ Warning:**
 > **Duplicate Theme IDs:** If multiple themes share the same `id` within `createThemes`, the last theme in the array will overwrite the previous ones.
 
 ---
 
 ## 🚀 Quick Start
 
-> [!NOTE]
+> **📝 Note:**
 > **Looking for an example?** You can find a fully configured SvelteKit implementation in the [apps/demo](https://github.com/nicohosse/sv-themes/tree/main/apps/demo) directory of the repository.
 
 ### 1. Create Theme Manager (`src/lib/theme-manager.svelte.ts`)
@@ -131,7 +121,7 @@ import { themeManager } from "$lib/theme-manager.svelte"; // Your shared manager
 export const handle = createThemeHandle(themeManager);
 ```
 
-> [!TIP]
+> **💡 Tip:**
 > **CSP Nonce Support:** If your application enforces a Content Security Policy (CSP), you can provide a script nonce to the inline head bootloader in two ways:
 > 1. Set `event.locals.svThemesScriptNonce` in SvelteKit's request cycle.
 > 2. Pass it directly as the second parameter: `createThemeHandle(themeManager, cspNonce)`.
@@ -265,7 +255,7 @@ export const themeManager = createThemeManager({
 );
 ```
 
-> [!NOTE]
+> **📝 Note:**
 > **SvelteKit / Svelte Application Layouts:** If you are building a SvelteKit app, prefer using `createAppThemeManager` instead. It wraps the manager creation, handles Svelte context setup, and registers DOM synchronization automatically, reducing boilerplate in your root layout.
 
 #### Configuration Options (`ThemeManagerConfig<Themes>`)
@@ -326,7 +316,7 @@ export const { themeManager, registerThemeManager } = createAppThemeManager({
 );
 ```
 
-> [!WARNING]
+> **⚠️ Warning:**
 > **Context Collision:**
 > `registerThemeManager` runs checks to prevent collisions. It will refuse to register and return a `ThemeManagerError` if:
 > - **`AlreadyRegistered`**: Another theme manager is already registered upstream in Svelte's context hierarchy. Ensure you only call `registerThemeManager` once at your root layout level.
@@ -371,7 +361,7 @@ Forced themes can be set for individual pages or layouts. Layout overrides autom
 | `priority` | `number` | `0` | Higher priorities override lower priorities. |
 | `overrideChildren` | `boolean` | `false` | If true, blocks downstream child components from changing the theme. |
 
-> [!NOTE]
+> **📝 Note:**
 > Support for individual component scoped overrides is planned for a future version.
 
 ---

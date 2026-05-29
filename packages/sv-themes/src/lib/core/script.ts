@@ -138,8 +138,7 @@ export function themeScript<const Themes extends ThemeRecord>(
 		if (!isColorHex) {
 			const resolverElement = document.createElement("div");
 			resolverElement.style.display = "none";
-
-			document.body.appendChild(resolverElement);
+			rootElement.appendChild(resolverElement);
 
 			const normalizeColor = (color: string): string => {
 				resolverElement.style.color = color;
@@ -159,7 +158,7 @@ export function themeScript<const Themes extends ThemeRecord>(
 				const variableValue = getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
 
 				if (!variableValue) {
-					if (fallback) return normalizeColor(fallback);
+					if (fallback) return resolveCssColor(fallback);
 					return undefined;
 				}
 

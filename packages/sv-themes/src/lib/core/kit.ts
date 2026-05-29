@@ -85,7 +85,7 @@ export function createThemeHandle<Themes extends ThemeRecord>(
 
 						return `<html${updatedAttributes}>`;
 					})
-					.replace(HEAD_CLOSE_REGEX, `${cachedData.scriptTag}${cachedData.ssrTags.join("")}</head>`)
+					.replace(HEAD_CLOSE_REGEX, `${cachedData.ssrTags.join("")}${cachedData.scriptTag}</head>`)
 					.replaceAll(FORCE_THEME_META_REGEX, "");
 			},
 		});

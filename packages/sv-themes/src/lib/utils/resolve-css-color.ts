@@ -36,7 +36,7 @@ export function resolveCssColor(value: string, options?: ResolveCssColorOptions)
 	const variableValue = getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
 
 	if (!variableValue) {
-		if (allowFallback && fallback) return normalizeColor(fallback);
+		if (allowFallback && fallback) return resolveCssColor(fallback);
 		return undefined;
 	}
 

@@ -52,6 +52,36 @@ describe("themeScript", () => {
 		expect(colorSchemeMetaElement).toBeNull();
 	});
 
+	it("doesnt duplicate meta tags", () => {
+		const themeColorMetaElement: HTMLMetaElement | null = document.createElement("meta");
+		themeColorMetaElement.name = "theme-color";
+		document.head.appendChild(themeColorMetaElement);
+
+		const colorSchemeMetaElement: HTMLMetaElement | null = document.createElement("meta");
+		colorSchemeMetaElement.name = "color-scheme";
+		document.head.appendChild(colorSchemeMetaElement);
+
+		themeScript(
+			themes,
+			themeIds,
+			systemThemes,
+			false,
+			"light",
+			"light",
+			["class"],
+			STORAGE_METHOD_PRIORITY,
+			undefined,
+			true,
+			true,
+		);
+
+		const themeColorMetaElements = document.querySelectorAll('meta[name="theme-color"]');
+		expect(themeColorMetaElements.length).toBe(1);
+
+		const colorSchemeMetaElements = document.querySelectorAll('meta[name="color-scheme"]');
+		expect(colorSchemeMetaElements.length).toBe(1);
+	});
+
 	it("retrieves theme from localStorage", () => {
 		localStorage.setItem("theme", "dark");
 

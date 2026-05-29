@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createThemes } from "$lib/index.js";
 import { expectOk } from "$lib/tests/setup.js";
 import { createMockThemeManagerConfig, MOCK_THEME_MANAGER_CONFIG } from "$lib/tests/theme-manager.js";
@@ -165,23 +165,7 @@ describe("getSSRTags", () => {
 			expect(ssrTags.find((tag) => tag.includes("theme-color"))).toContain('content="#fff"');
 		});
 
-		it("sets non-hex theme-color if color can be resolved", () => {
-			const themes = createThemes([{ id: "light", type: "light", color: "white" }]);
-
-			const themeManager = expectOk(
-				createThemeManager(
-					createMockThemeManagerConfig({
-						themes,
-					}),
-				),
-			);
-
-			const ssrTags = getSSRTags(themeManager);
-
-			expect(ssrTags.find((tag) => tag.includes("theme-color"))).toContain('content="rgb(255, 255, 255)"');
-		});
-
-		it("logs error and skips meta tag if non-hex theme-color cannot be resolved", () => {
+		it("skips meta tag if theme-color isnt hex", () => {
 			const themes = createThemes([{ id: "light", type: "light", color: "var(--missing)" }]);
 
 			const themeManager = expectOk(
@@ -192,13 +176,7 @@ describe("getSSRTags", () => {
 				),
 			);
 
-			const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
 			const ssrTags = getSSRTags(themeManager);
-
-			expect(consoleSpy).toHaveBeenCalledExactlyOnceWith(
-				"The color of theme 'light' couldn't be resolved. Skipping theme-color meta tag.",
-			);
 
 			expect(ssrTags.find((tag) => tag.includes("theme-color"))).toBeUndefined();
 		});

@@ -45,27 +45,12 @@ export function getSSRTags<Themes extends ThemeRecord>(themeManager: ThemeManage
 
 	if (themeManager.useThemeColor) {
 		const resolvedTheme = themeManager.themes[themeManager.resolvedTheme];
-
 		if (!resolvedTheme.color) return tags;
 
 		const isColorHex = resolvedTheme.color.startsWith("#");
+		if (!isColorHex) return tags;
 
-		let resolvedColor = resolvedTheme.color;
-
-		if (!isColorHex) {
-			const computedColor = resolveCssColor(resolvedTheme.color);
-
-			if (computedColor) resolvedColor = computedColor;
-			else {
-				logError(
-					`The color of theme '${resolvedTheme.id}' couldn't be resolved. Skipping theme-color meta tag.`,
-					themeManager,
-				);
-				return tags;
-			}
-		}
-
-		tags.push(`<meta name="theme-color" content="${resolvedColor}">`);
+		tags.push(`<meta name="theme-color" content="${resolvedTheme.color}">`);
 	}
 
 	return tags;
