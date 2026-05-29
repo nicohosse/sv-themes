@@ -67,8 +67,14 @@ export const APP_THEMES = createThemes([
 ]);
 ```
 
+> [!IMPORTANT]
+> **Theme Order & System Fallbacks:** The order of themes in the array defines their priority within their respective type. If system themes are enabled but explicit `mappings` are omitted, the first theme of type `"light"` and the first theme of type `"dark"` are automatically selected as the fallback targets for system preference resolution.
+
 > [!TIP]
 > **Flexible Color Values:** The `color` property supports standard CSS names (e.g., `green`), HEX codes (e.g., `#fff`), and CSS custom properties (variables) with optional fallbacks (e.g., `var(--nature, green)`).
+
+> [!TIP]
+> **Automatic `<meta name="color-scheme">` Resolution:** If `useColorScheme` is enabled, the library automatically manages the `<meta name="color-scheme">` element. Its content resolves to `'light dark'`, `'dark light'`, `'light'`, or `'dark'` depending on the types of your registered themes and the type of the *first* theme in your config. This prevents unstyled UI flashes (such as scrollbars) instantly on load.
 
 ### Types
 
@@ -272,7 +278,7 @@ export const themeManager = createThemeManager({
 | `useSystemTheme` | `boolean` | `true` | Tracks whether the user preference is set to follow the OS. |
 | `forcedTheme` | `keyof Themes \| "system"` | `undefined` | The initial forced theme value, if any. |
 | `isForcedThemeLocked` | `boolean` | `false` | Initial locked state of forced themes. |
-| `useColorScheme` | `boolean` | `true` | Synchronizes the browser's CSS `color-scheme` rule. |
+| `useColorScheme` | `boolean` | `true` | If active, synchronizes the CSS `color-scheme` rule on the root element. It also automatically manages the `<meta name="color-scheme">` HTML element, dynamically resolving its content to `'light dark'`, `'dark light'`, `'light'`, or `'dark'` based on the types and order of your registered themes. |
 | `useThemeColor` | `boolean` | `true` | Dynamically updates `<meta name="theme-color">` using theme colors. |
 | `isThemeForcedAttribute` | `string` | `"data-is-theme-forced"` | Attribute name set on `<html>` when a forced theme is active. |
 | `isSystemThemeAttribute` | `string` | `"data-is-system-theme"` | Attribute name set on `<html>` when system theme is active. |
