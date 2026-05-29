@@ -1,7 +1,7 @@
 {
 	"name": "demo",
 	"description": "SvelteKit demo of sv-themes.",
-	"version": "0.9.0",
+	"version": "0.9.1",
 	"author": "Nico Hosse <https://github.com/nicohosse>",
 	"license": "MIT",
 	"private": true,
