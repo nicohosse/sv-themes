@@ -17,9 +17,9 @@
         "stylelint-scss": "7.0.0",
       },
     },
-    "packages/demo": {
+    "apps/demo": {
       "name": "demo",
-      "version": "1.0.0",
+      "version": "0.9.0",
       "dependencies": {
         "sv-themes": "workspace:*",
       },
@@ -40,7 +40,7 @@
     },
     "packages/sv-themes": {
       "name": "sv-themes",
-      "version": "0.1.0",
+      "version": "0.9.0",
       "dependencies": {
         "esm-env": "1.2.2",
         "neverthrow": "8.2.0",
@@ -380,7 +380,7 @@
 
     "deepmerge": ["deepmerge@4.3.1", "", {}, "sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A=="],
 
-    "demo": ["demo@workspace:packages/demo"],
+    "demo": ["demo@workspace:apps/demo"],
 
     "dequal": ["dequal@2.0.3", "", {}, "sha512-0je+qPKHEMohvfRTCEo3CrPG6cAzAYgmzKyxRiYSSDkS6eGJdyVJm7WaYA5ECaAD9wLB2T4EEeymA5aFVcYXCA=="],
 

@@ -1,15 +1,16 @@
 {
 	"name": "demo",
 	"description": "SvelteKit demo of sv-themes.",
-	"version": "1.0.0",
-	"author": "Nico Hosse <https://github.com/Ventriix>",
+	"version": "0.9.0",
+	"author": "Nico Hosse <https://github.com/nicohosse>",
+	"license": "MIT",
 	"private": true,
 	"keywords": [
 		"svelte"
 	],
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/Ventriix/sv-themes",
+		"url": "https://github.com/nicohosse/sv-themes",
 		"directory": "packages/demo"
 	},
 	"scripts": {

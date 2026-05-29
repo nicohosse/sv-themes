@@ -4,7 +4,7 @@
 
 [![NPM](https://img.shields.io/npm/v/sv-themes?color=ff3e00&label=npm)](https://www.npmjs.com/package/sv-themes)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Coverage Status](https://img.shields.io/badge/Coverage-95%25-green.svg)](https://github.com/Ventriix/sv-themes)
+[![Coverage Status](https://img.shields.io/badge/Coverage-95%25-green.svg)](https://github.com/nicohosse/sv-themes)
 
 A type-safe theme management library designed for **Svelte 5** and **SvelteKit**. Rather than basic class toggling, `sv-themes` coordinates states across the SvelteKit server lifecycle and Svelte 5 client-side components to resolve common theme challenges like handling system preferences, storage fallbacks, cross-tab syncing, and scoped theme overrides without hydration mismatches or layout flickers.
 
@@ -91,7 +91,7 @@ export type ThemeRecord<Keys extends string = string> = Record<Keys, Readonly<Th
 ## 🚀 Quick Start
 
 > [!NOTE]
-> **Looking for an example?** You can find a fully configured SvelteKit implementation in the [packages/demo](https://github.com/Ventriix/sv-themes/tree/main/packages/demo) directory of the repository.
+> **Looking for an example?** You can find a fully configured SvelteKit implementation in the [apps/demo](https://github.com/nicohosse/sv-themes/tree/main/apps/demo) directory of the repository.
 
 ### 1. Create Theme Manager (`src/lib/theme-manager.svelte.ts`)
 Set up your canonical theme configurations and instantiate the manager.

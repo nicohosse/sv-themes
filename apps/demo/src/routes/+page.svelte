@@ -12,7 +12,6 @@
 			type="button"
 			use:themeSelector={{
 				theme: themeId,
-		 		themeManager
 			}}
 		>
 			{themeId}
@@ -22,7 +21,6 @@
 		type="button"
 		use:themeSelector={{
 			theme: themeManager.resolvedUseSystemTheme ? themeManager.selectedTheme : "system",
- 			themeManager
 		}}
 	>
 		System

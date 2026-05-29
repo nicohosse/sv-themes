@@ -2,18 +2,20 @@
 	"name": "root",
 	"description": "Monorepo for sv-themes",
 	"version": "0.0.0",
-	"author": "Nico Hosse <https://github.com/Ventriix>",
+	"author": "Nico Hosse <https://github.com/nicohosse>",
+	"license": "MIT",
 	"private": true,
 	"type": "module",
 	"workspaces": [
-		"packages/*"
+		"packages/*",
+		"apps/*"
 	],
 	"scripts": {
-		"prepare": "bun run --filter \"*\" prepare && lefthook install",
-		"build": "bun run --filter \"*\" build",
-		"check": "bun run --filter \"*\" check",
+		"prepare": "bun run --filter \"./packages/*\" prepare && lefthook install",
+		"build": "bun run --filter \"./packages/*\" build",
+		"check": "bun run --filter \"./packages/*\" check",
 		"changeset": "changeset",
-		"version-packages": "changeset version && bun install",
+		"version-packages": "changeset version",
 		"release": "bun run build && changeset publish"
 	},
 	"devDependencies": {

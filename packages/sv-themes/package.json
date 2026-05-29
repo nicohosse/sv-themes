@@ -2,7 +2,7 @@
 	"name": "sv-themes",
 	"description": "SSR-safe Svelte theme switcher with tab sync and FOUC prevention.",
 	"version": "0.9.0",
-	"author": "Nico Hosse <https://github.com/Ventriix>",
+	"author": "Nico Hosse <https://github.com/nicohosse>",
 	"license": "MIT",
 	"keywords": [
 		"theme",
@@ -24,7 +24,7 @@
 	],
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/Ventriix/sv-themes",
+		"url": "https://github.com/nicohosse/sv-themes",
 		"directory": "packages/sv-themes"
 	},
 	"scripts": {
