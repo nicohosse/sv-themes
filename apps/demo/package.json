@@ -10,8 +10,8 @@
 	],
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/nicohosse/sv-themes",
-		"directory": "packages/demo"
+		"url": "git+https://github.com/nicohosse/sv-themes.git",
+		"directory": "apps/demo"
 	},
 	"scripts": {
 		"dev": "vite dev",

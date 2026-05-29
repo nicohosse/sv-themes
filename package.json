@@ -4,8 +4,12 @@
 	"version": "0.0.0",
 	"author": "Nico Hosse <https://github.com/nicohosse>",
 	"license": "MIT",
-	"private": true,
 	"type": "module",
+	"private": true,
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/nicohosse/sv-themes.git"
+	},
 	"workspaces": [
 		"packages/*",
 		"apps/*"
@@ -17,7 +21,7 @@
 		"test": "bun run --filter \"./packages/*\" test",
 		"changeset": "changeset",
 		"version-packages": "changeset version",
-		"release": "bun run build && changeset publish"
+		"release": "bun run build && npx changeset publish"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.13",
