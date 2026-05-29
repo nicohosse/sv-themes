@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Coverage Status](https://img.shields.io/badge/Coverage-95%25-green.svg)](https://github.com/Ventriix/sv-themes)
 
-A type-safe theme management library designed for **Svelte 5** and **SvelteKit**. Rather than basic class toggling, `sv-themes` coordinates states across the SvelteKit server lifecycle and Svelte 5 client-side components to resolve common theme challenges like handling system preferences, storage fallbacks, cross-tab syncing, and nested theme overrides without hydration mismatches or layout flickers.
+A type-safe theme management library designed for **Svelte 5** and **SvelteKit**. Rather than basic class toggling, `sv-themes` coordinates states across the SvelteKit server lifecycle and Svelte 5 client-side components to resolve common theme challenges like handling system preferences, storage fallbacks, cross-tab syncing, and scoped theme overrides without hydration mismatches or layout flickers.
 
 ## Features
 
@@ -238,7 +238,7 @@ on<Event extends keyof ThemeManagerEvents<Themes>>(
 
 ### `createThemeManager<Themes>(config)`
 
-Instantiates your Svelte 5 reactive theme manager. It performs structural normalization and validations upon initialization, returning a `Result` container from `neverthrow`.
+Instantiates the theme manager. It performs structural normalization and validations upon initialization, returning a `Result` container from `neverthrow`.
 
 ```typescript
 import { createThemeManager } from "sv-themes";
@@ -267,7 +267,7 @@ export const themeManager = createThemeManager({
 | Property | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `themes` | `Themes` | *Required* | The record of registered theme objects of type `ThemesRecord`. |
-| `initialTheme` | `keyof Themes` | *Required* | The fallback/default theme ID to fall back on during initialization. |
+| `initialTheme` | `keyof Themes ` | *Required* | The fallback/default theme ID to fall back on during initialization. |
 | `systemThemes` | `SystemThemesConfig<Themes>` | `{ kind: "disabled" }` | Setup indicating if system themes are `"disabled"` or `"enabled"`. The `mappings` field is a `Partial<Record<SystemTheme, keyof Themes>>` and automatically resolves to the first registered light and dark themes in your `themes` record if omitted. |
 | `useSystemTheme` | `boolean` | `true` | Tracks whether the user preference is set to follow the OS. |
 | `forcedTheme` | `keyof Themes \| "system"` | `undefined` | The initial forced theme value, if any. |
@@ -279,7 +279,7 @@ export const themeManager = createThemeManager({
 | `storage` | `StorageOptions` | See below | Configuration details for storage syncing and persistence. |
 | `enableTabSync` | `boolean` | `true` | Active state of cross-tab synchronization. Requires either `"localStorage"` or `"sessionStorage"` in storage methods. |
 | `attributes` | `ThemeAttribute[]` | `["class", "data-theme"]` | Array of DOM targets to manipulate on the root. |
-| `enableLogging` | `boolean` | `process.env.NODE_ENV === "production"` | Enables console error logging during standard operation. |
+| `enableLogging` | `boolean` | `process.env.NODE_ENV === "production"` | Whether to log to console. |
 
 #### Storage Defaults
 
@@ -299,7 +299,7 @@ If the `storage` configuration is omitted, it defaults to:
 
 ### `createAppThemeManager<Themes>(config)`
 
-An all-in-one helper designed specifically for SvelteKit and Svelte 5 application layouts. It wraps both the manager instantiation and DOM/Context registration.
+An all-in-one helper designed specifically for SvelteKit and Svelte 5 applications. It wraps both the manager instantiation and DOM/Context registration.
 
 ```typescript
 import { createAppThemeManager, DEFAULT_THEMES } from "sv-themes";
@@ -322,7 +322,7 @@ export const { themeManager, registerThemeManager } = createAppThemeManager({
 
 > [!WARNING]
 > **Context Collision:**
-> `registerThemeManager` runs checks to prevent Svelte context collisions. It will refuse to register and return a `ThemeManagerError` if:
+> `registerThemeManager` runs checks to prevent collisions. It will refuse to register and return a `ThemeManagerError` if:
 > - **`AlreadyRegistered`**: Another theme manager is already registered upstream in Svelte's context hierarchy. Ensure you only call `registerThemeManager` once at your root layout level.
 
 ---
@@ -377,10 +377,9 @@ Quickly bind elements to theme events with built-in accessibility (ARIA) attribu
 ```svelte
 <script lang="ts">
 	import { themeSelector } from "sv-themes";
-	import { themeManager } from "$lib/theme-manager.svelte";
 </script>
 
-<button use:themeSelector={{ theme: "dark", themeManager }}>
+<button use:themeSelector={{ theme: "dark" }}>
 	Switch to Dark
 </button>
 ```
@@ -389,7 +388,7 @@ Quickly bind elements to theme events with built-in accessibility (ARIA) attribu
 
 ## 🔬 Lifecycle Events
 
-`sv-themes` exposes type-safe events for deep integration, allowing you to run animations, track analytics, or cancel transitions entirely:
+`sv-themes` exposes type-safe events for integration, allowing you to run animations, track analytics, or cancel transitions entirely:
 
 ```typescript
 const unsubscribe = themeManager.on("beforeChange", async (event) => {
@@ -403,6 +402,42 @@ themeManager.on("afterChange", (event) => {
 	analytics.track("Theme Switched", { from: event.from, to: event.to });
 });
 ```
+
+### Event Registry (`ThemeManagerEvents<Themes>`)
+
+| Event Name | Payload Type | Description |
+| :--- | :--- | :--- |
+| `beforeChange` | `BeforeThemeChangeEvent<Themes>` | Fired immediately before a theme transition begins. It is fully cancellable. |
+| `afterChange` | `AfterThemeChangeEvent<Themes>` | Fired immediately after a theme transition finishes and has been persisted. |
+| `systemChange` | `SystemThemeChangeEvent<Themes>` | Fired when the operating system's theme preference changes. |
+| `forced` | `ForcedThemeEvent<Themes>` | Fired when a temporary theme override is applied. |
+| `unforced` | `UnforcedThemeEvent` | Fired when an active forced theme override is cleared. |
+
+### Event Payloads
+
+#### `BeforeThemeChangeEvent<Themes>`
+Extends `ThemeChangeEvent`. Passed to `beforeChange` listeners.
+- `from`: `keyof Themes | "system"` - The active resolved theme before the transition.
+- `to`: `keyof Themes | "system"` - The requested target theme.
+- `preventDefault()`: `() => void` - Call this method to cancel the theme change.
+- `defaultPrevented`: `boolean` - Indicates whether any active listener has cancelled the transition.
+
+#### `AfterThemeChangeEvent<Themes>`
+Passed to `afterChange` listeners.
+- `from`: `keyof Themes | "system"` - The previous resolved theme.
+- `to`: `keyof Themes | "system"` - The newly applied theme.
+
+#### `SystemThemeChangeEvent<Themes>`
+Passed to `systemChange` listeners.
+- `systemTheme`: `SystemTheme` (`"light" | "dark"`) - The raw OS-level color scheme preference.
+- `resolvedSystemTheme`: `keyof Themes` - The corresponding app theme ID mapped to this OS state.
+
+#### `ForcedThemeEvent<Themes>`
+Passed to `forced` listeners.
+- `theme`: `keyof Themes | "system"` - The specific theme that was temporarily forced.
+
+#### `UnforcedThemeEvent`
+Passed to `unforced` listeners. An empty non-nullable object `NonNullable<unknown>` representing a clear signal.
 
 ## License
 

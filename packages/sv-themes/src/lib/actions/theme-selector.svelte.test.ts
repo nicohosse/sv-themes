@@ -1,5 +1,6 @@
 import { flushSync } from "svelte";
 import { describe, expect, it, vi } from "vitest";
+import * as themeManagerContextModule from "$lib/contexts/theme-manager-context.svelte.js";
 import { createThemeManager } from "$lib/core/theme-manager/index.js";
 import { ThemeManagerError } from "$lib/index.js";
 import { expectOk } from "$lib/tests/setup.js";
@@ -12,10 +13,11 @@ describe("themeSelector", () => {
 
 		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
+		vi.spyOn(themeManagerContextModule, "getThemeManager").mockReturnValue(themeManager);
+
 		const cleanup = $effect.root(() => {
 			const action = themeSelector(node, {
 				theme: "light",
-				themeManager,
 			});
 
 			flushSync();
@@ -35,10 +37,11 @@ describe("themeSelector", () => {
 
 			const themeManager = expectOk(createThemeManager(createMockThemeManagerConfig({ useSystemTheme: true }, false)));
 
+			vi.spyOn(themeManagerContextModule, "getThemeManager").mockReturnValue(themeManager);
+
 			const cleanup = $effect.root(() => {
 				const action = themeSelector(node, {
 					theme: "system",
-					themeManager,
 				});
 
 				flushSync();
@@ -67,10 +70,11 @@ describe("themeSelector", () => {
 				),
 			);
 
+			vi.spyOn(themeManagerContextModule, "getThemeManager").mockReturnValue(themeManager);
+
 			const cleanup = $effect.root(() => {
 				const action = themeSelector(node, {
 					theme: "system",
-					themeManager,
 				});
 
 				flushSync();
@@ -88,10 +92,11 @@ describe("themeSelector", () => {
 
 			const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
+			vi.spyOn(themeManagerContextModule, "getThemeManager").mockReturnValue(themeManager);
+
 			const cleanup = $effect.root(() => {
 				const action = themeSelector(node, {
 					theme: "light",
-					themeManager,
 				});
 
 				flushSync();
@@ -110,12 +115,12 @@ describe("themeSelector", () => {
 
 		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
+		vi.spyOn(themeManagerContextModule, "getThemeManager").mockReturnValue(themeManager);
 		vi.spyOn(themeManager, "setTheme");
 
 		const cleanup = $effect.root(() => {
 			const action = themeSelector(node, {
 				theme: "dark",
-				themeManager,
 			});
 
 			flushSync();
@@ -137,10 +142,11 @@ describe("themeSelector", () => {
 
 		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
+		vi.spyOn(themeManagerContextModule, "getThemeManager").mockReturnValue(themeManager);
+
 		const cleanup = $effect.root(() => {
 			const action = themeSelector(node, {
 				theme: "missing" as never,
-				themeManager,
 			});
 
 			flushSync();
@@ -171,10 +177,11 @@ describe("themeSelector", () => {
 			),
 		);
 
+		vi.spyOn(themeManagerContextModule, "getThemeManager").mockReturnValue(themeManager);
+
 		const cleanup = $effect.root(() => {
 			const action = themeSelector(node, {
 				theme: "system",
-				themeManager,
 			});
 
 			flushSync();
@@ -192,10 +199,11 @@ describe("themeSelector", () => {
 
 		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
+		vi.spyOn(themeManagerContextModule, "getThemeManager").mockReturnValue(themeManager);
+
 		const cleanup = $effect.root(() => {
 			const action = themeSelector(node, {
 				theme: "light",
-				themeManager,
 			});
 
 			flushSync();
@@ -213,10 +221,11 @@ describe("themeSelector", () => {
 
 		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
+		vi.spyOn(themeManagerContextModule, "getThemeManager").mockReturnValue(themeManager);
+
 		const cleanup = $effect.root(() => {
 			const action = themeSelector(node, {
 				theme: "dark",
-				themeManager,
 			});
 
 			flushSync();
@@ -244,19 +253,21 @@ describe("themeSelector", () => {
 			),
 		);
 
+		vi.spyOn(themeManagerContextModule, "getThemeManager").mockReturnValue(lightThemeManager);
+
 		const cleanup = $effect.root(() => {
 			const action = themeSelector(node, {
 				theme: "light",
-				themeManager: lightThemeManager,
 			});
 
 			flushSync();
 
 			expect(node.ariaPressed).toBe("true");
 
+			vi.spyOn(themeManagerContextModule, "getThemeManager").mockReturnValue(darkThemeManager);
+
 			action.update?.({
 				theme: "dark",
-				themeManager: darkThemeManager,
 			});
 
 			flushSync();
@@ -274,12 +285,13 @@ describe("themeSelector", () => {
 
 		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
+		vi.spyOn(themeManagerContextModule, "getThemeManager").mockReturnValue(themeManager);
+
 		vi.spyOn(themeManager, "setTheme");
 
 		const cleanup = $effect.root(() => {
 			const action = themeSelector(node, {
 				theme: "dark",
-				themeManager,
 			});
 
 			flushSync();

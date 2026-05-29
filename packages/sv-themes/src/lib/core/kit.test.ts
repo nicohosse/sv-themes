@@ -82,7 +82,7 @@ describe("createThemeHandle", () => {
 		expect(result).toContain("<script>");
 	});
 
-	it("injects theme script with cspNonce", async () => {
+	it("injects theme script with csp nonce from event locals", async () => {
 		testEnv().browser(false).apply();
 
 		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
@@ -90,7 +90,7 @@ describe("createThemeHandle", () => {
 		const mockEvent = {
 			cookies: createMockCookies(),
 			locals: {
-				cspNonce: "test-nonce",
+				svThemesScriptNonce: "test-nonce",
 			},
 		} as unknown as RequestEvent;
 
@@ -102,6 +102,29 @@ describe("createThemeHandle", () => {
 		});
 
 		const handle = createThemeHandle(themeManager);
+		const response = await handle({ event: mockEvent, resolve: mockResolve });
+		const result = await response.text();
+
+		expect(result).toContain('<script nonce="test-nonce">');
+	});
+
+	it("injects theme script with csp nonce from argument", async () => {
+		testEnv().browser(false).apply();
+
+		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+		const mockEvent = {
+			cookies: createMockCookies(),
+		} as unknown as RequestEvent;
+
+		const mockResolve = vi.fn().mockImplementation(async (_event, opts) => {
+			const html = EMPTY_HTML;
+			const transformedHtml = opts?.transformPageChunk ? await opts.transformPageChunk({ html }) : html;
+
+			return new Response(transformedHtml);
+		});
+
+		const handle = createThemeHandle(themeManager, "test-nonce");
 		const response = await handle({ event: mockEvent, resolve: mockResolve });
 		const result = await response.text();
 

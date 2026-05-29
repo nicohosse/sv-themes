@@ -1,6 +1,6 @@
 import type { Handle } from "@sveltejs/kit";
 import { flushSync } from "svelte";
-import { getPersistedTheme, type ThemeManager } from "$lib/index.js";
+import type { ThemeManager } from "$lib/index.js";
 import { getThemeScript } from "./script.js";
 import {
 	CLASS_ATTRIBUTE_REGEX,
@@ -13,6 +13,7 @@ import {
 	STYLE_ATTRIBUTE_REGEX,
 } from "./server.js";
 import type { ThemeRecord } from "./theme/theme.js";
+import { getPersistedTheme } from "./theme-manager/index.js";
 
 /**
  * SvelteKit server-side handle hook that intercepts page requests to inject theme variables.
