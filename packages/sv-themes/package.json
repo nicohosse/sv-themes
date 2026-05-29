@@ -1,6 +1,6 @@
 {
 	"name": "sv-themes",
-	"description": "SSR-safe Svelte theme switcher with tab sync and FOUC prevention.",
+	"description": "SSR-safe Svelte 5 theme management library with advanced features like tab sync, FOUC prevention, scoped overrides, and more.",
 	"version": "0.9.0",
 	"author": "Nico Hosse <https://github.com/nicohosse>",
 	"license": "MIT",

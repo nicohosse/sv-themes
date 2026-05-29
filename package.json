@@ -14,6 +14,7 @@
 		"prepare": "bun run --filter \"./packages/*\" prepare && lefthook install",
 		"build": "bun run --filter \"./packages/*\" build",
 		"check": "bun run --filter \"./packages/*\" check",
+		"test": "bun run --filter \"./packages/*\" test",
 		"changeset": "changeset",
 		"version-packages": "changeset version",
 		"release": "bun run build && changeset publish"
