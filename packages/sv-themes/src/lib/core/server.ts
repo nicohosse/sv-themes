@@ -1,6 +1,4 @@
 import type { ThemeManager, ThemeRecord } from "$lib/index.js";
-import { resolveCssColor } from "$lib/utils/resolve-css-color.js";
-import { logError } from "./index.js";
 
 export const HTML_TAG_REGEX = /<html([^>]*)>/;
 export const HEAD_CLOSE_REGEX = /<\/head>/;

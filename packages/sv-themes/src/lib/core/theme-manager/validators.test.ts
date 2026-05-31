@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createThemes, DEFAULT_THEMES, type ThemeRecord } from "$lib/index.js";
+import { createThemes, type DEFAULT_THEMES, type ThemeRecord } from "$lib/index.js";
 import { expectOk } from "$lib/tests/setup.js";
 import {
 	createMockThemeManagerConfig,
@@ -7,7 +7,7 @@ import {
 	MOCK_THEME_MANAGER_CONFIG,
 } from "$lib/tests/theme-manager.js";
 import { ThemeManagerError } from "./errors.js";
-import { type ResolvedThemeManagerConfig, resolveThemeManagerConfig } from "./index.js";
+import { createThemeManager, type ResolvedThemeManagerConfig, resolveThemeManagerConfig } from "./index.js";
 import {
 	validateRequestedTheme,
 	validateSystemTheme,
@@ -17,18 +17,38 @@ import {
 
 describe("validateRequestedTheme", () => {
 	it("returns Ok when the requested theme exists in themes", () => {
-		const result = validateRequestedTheme(DEFAULT_THEMES, "light");
+		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+		const result = validateRequestedTheme(themeManager, "light");
 
 		expect(result).toBeOk();
 	});
 
 	it("returns Err ThemeNotFound when the requested theme does not exist", () => {
-		const themes = createThemes([{ id: "light", type: "light" }]);
+		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
 		// @ts-expect-error testing
-		const result = validateRequestedTheme(themes, "dark");
+		const result = validateRequestedTheme(themeManager, "nature");
 
-		expect(result).toBeErr(ThemeManagerError.themeNotFound("dark"));
+		expect(result).toBeErr(ThemeManagerError.themeNotFound("nature"));
+	});
+
+	it("returns Err SystemThemesDisabled if system themes are disabled", () => {
+		const themeManager = expectOk(
+			createThemeManager(createMockThemeManagerConfig({ systemThemes: { kind: "disabled" } }, false)),
+		);
+
+		const result = validateRequestedTheme(themeManager, "system");
+
+		expect(result).toBeErr(ThemeManagerError.systemThemesDisabled);
+	});
+
+	it("returns Ok when the requested theme is 'system' and system themes are enabled", () => {
+		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+		const result = validateRequestedTheme(themeManager, "system");
+
+		expect(result).toBeOk();
 	});
 });
 

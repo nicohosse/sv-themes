@@ -176,7 +176,7 @@ export function registerThemeManager<const Themes extends ThemeRecord>(themeMana
 		const removeMediaListener = registerMediaListener(themeManager);
 
 		getPersistedTheme(themeManager).then((persistedTheme) => {
-			if (persistedTheme) themeManager.setTheme(persistedTheme, false);
+			if (persistedTheme) themeManager.setTheme(persistedTheme, { shouldPersist: false });
 		});
 
 		return () => {

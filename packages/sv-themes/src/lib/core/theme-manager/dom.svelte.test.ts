@@ -77,9 +77,13 @@ describe("updateMetaTags", () => {
 	});
 
 	it("creates or updates the color-scheme with light content when there is no dark theme if enabled", () => {
-		const themes = createThemes([{ id: "light", type: "light" }]);
+		const lightOnly = createThemes([{ id: "light", type: "light" }]);
 
-		const themeManager = expectOk(createThemeManager({ themes, initialTheme: "light" }));
+		const themeManager = expectOk(
+			createThemeManager(
+				createMockThemeManagerConfig({ themes: lightOnly, systemThemes: { kind: "disabled" } }, false),
+			),
+		);
 
 		updateMetaTags(themeManager);
 
@@ -89,9 +93,16 @@ describe("updateMetaTags", () => {
 	});
 
 	it("creates or updates the color-scheme with dark content when there is no light theme if enabled", () => {
-		const themes = createThemes([{ id: "dark", type: "dark" }]);
+		const darkOnly = createThemes([{ id: "dark", type: "dark" }]);
 
-		const themeManager = expectOk(createThemeManager({ themes, initialTheme: "dark" }));
+		const themeManager = expectOk(
+			createThemeManager(
+				createMockThemeManagerConfig(
+					{ themes: darkOnly, initialTheme: "dark", systemThemes: { kind: "disabled" } },
+					false,
+				),
+			),
+		);
 
 		updateMetaTags(themeManager);
 
@@ -237,7 +248,7 @@ describe("updateAttributes", () => {
 		expect(document.documentElement.style.colorScheme).toBe("light");
 	});
 
-	it("handles system theme attributes correctly", () => {
+	it("handles system theme attributes correctly", async () => {
 		const themeManager = expectOk(
 			createThemeManager(
 				createMockThemeManagerConfig({
@@ -250,14 +261,16 @@ describe("updateAttributes", () => {
 
 		expect(document.documentElement.getAttribute("data-is-system-theme")).toBe("true");
 
-		themeManager.setTheme(themeManager.selectedTheme);
+		await themeManager.setTheme(themeManager.selectedTheme);
+
+		flushSync();
 
 		updateAttributes(themeManager);
 
 		expect(document.documentElement.getAttribute("data-is-system-theme")).toBeNull();
 	});
 
-	it("handles forced theme attributes correctly", () => {
+	it("handles forced theme attributes correctly", async () => {
 		const themeManager = expectOk(
 			createThemeManager(
 				createMockThemeManagerConfig({
@@ -270,7 +283,9 @@ describe("updateAttributes", () => {
 
 		expect(document.documentElement.getAttribute("data-is-theme-forced")).toBe("true");
 
-		themeManager.setForcedTheme(undefined);
+		await themeManager.setForcedTheme(undefined);
+
+		flushSync();
 
 		updateAttributes(themeManager);
 
@@ -504,7 +519,7 @@ describe("registerStorageListener", () => {
 		cleanup();
 	});
 
-	it("sets theme when a valid theme change occurs in localStorage, and cleanup prevents subsequent triggers", () => {
+	it("sets theme when a valid theme change occurs in localStorage, and cleanup prevents subsequent triggers", async () => {
 		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
 		const beforeChangeSpy = vi.fn();
@@ -514,10 +529,12 @@ describe("registerStorageListener", () => {
 
 		globalThis.localStorage.setItem("theme", "dark");
 
-		expect(beforeChangeSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				to: "dark",
-			}),
+		await vi.waitFor(() =>
+			expect(beforeChangeSpy).toHaveBeenCalledWith(
+				expect.objectContaining({
+					to: "dark",
+				}),
+			),
 		);
 
 		cleanup();

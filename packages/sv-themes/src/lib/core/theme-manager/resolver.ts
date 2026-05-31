@@ -15,10 +15,21 @@ export type ResolvedSystemThemesConfig<Themes extends ThemeRecord = ThemeRecord>
 
 export type ResolvedThemeManagerConfig<Themes extends ThemeRecord = ThemeRecord> = Omit<
 	ThemeManagerConfig<Themes>,
-	"systemThemes" | "attributes"
+	"systemThemes" | "isForcedThemeLocked" | "attributes"
 > & {
 	systemThemes: ResolvedSystemThemesConfig<Themes>;
-} & Required<Pick<ThemeManagerConfig<Themes>, "attributes">>;
+} & Required<
+		Pick<
+			ThemeManagerConfig<Themes>,
+			| "useSystemTheme"
+			| "isForcedThemeLocked"
+			| "useColorScheme"
+			| "useThemeColor"
+			| "enableTabSync"
+			| "attributes"
+			| "enableLogging"
+		>
+	>;
 
 export function resolveSystemThemes<Themes extends ThemeRecord>(
 	config: ThemeManagerConfig<Themes>,
@@ -56,10 +67,10 @@ export function resolveThemeManagerConfig<const Themes extends ThemeRecord>(
 	return ok({
 		themes: config.themes,
 		systemThemes: resolvedSystemThemeResult.value,
-		useSystemTheme: config.useSystemTheme,
+		useSystemTheme: config.useSystemTheme ?? false,
 		initialTheme: config.initialTheme,
 		forcedTheme: config.forcedTheme,
-		isForcedThemeLocked: config.isForcedThemeLocked,
+		isForcedThemeLocked: config.isForcedThemeLocked ?? false,
 		useColorScheme: config.useColorScheme ?? true,
 		useThemeColor: config.useThemeColor ?? true,
 		isThemeForcedAttribute: "isThemeForcedAttribute" in config ? config.isThemeForcedAttribute : "data-is-theme-forced",
@@ -67,6 +78,6 @@ export function resolveThemeManagerConfig<const Themes extends ThemeRecord>(
 		storage: "storage" in config ? config.storage : DEFAULT_STORAGE_HYBRID,
 		enableTabSync: config.enableTabSync ?? true,
 		attributes: "attributes" in config ? (config.attributes ?? []) : ["class", "data-theme"],
-		enableLogging: "enableLogging" in config ? config.enableLogging : process.env.NODE_ENV === "production",
+		enableLogging: "enableLogging" in config ? (config.enableLogging ?? true) : process.env.NODE_ENV !== "production",
 	} satisfies ResolvedThemeManagerConfig<Themes>);
 }

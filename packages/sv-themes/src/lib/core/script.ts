@@ -17,13 +17,12 @@ export type ThemeScriptArguments<Themes extends ThemeRecord = ThemeRecord> = Pic
 	| "initialTheme"
 	| "selectedTheme"
 	| "forcedTheme"
-	| "useColorScheme"
-	| "useThemeColor"
 	| "isThemeForcedAttribute"
 	| "isSystemThemeAttribute"
 	| "storage"
 	| "attributes"
->;
+> &
+	Partial<Pick<ThemeManager<Themes>, "useColorScheme" | "useThemeColor">>;
 
 export function themeScript<const Themes extends ThemeRecord>(
 	themes: Themes,

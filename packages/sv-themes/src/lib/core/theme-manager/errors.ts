@@ -13,6 +13,7 @@ export type ThemeManagerError = BaseError &
 		| { id: "SystemThemesDisabled" }
 		| { id: "SystemThemeInvalidType"; systemTheme: SystemTheme }
 		| { id: "ForcedThemeLocked" }
+		| { id: "ForcedThemeActive" }
 		| { id: "TabSyncStorageMethodsIncompatible" }
 		| { id: "Cancelled" }
 	);
@@ -77,6 +78,11 @@ export const ThemeManagerError = {
 	forcedThemeLocked: {
 		id: "ForcedThemeLocked",
 		message: "Forced theme is locked.",
+	} as const satisfies ThemeManagerError,
+
+	forcedThemeActive: {
+		id: "ForcedThemeActive",
+		message: "A forced theme is currently active.",
 	} as const satisfies ThemeManagerError,
 
 	tabSyncStorageMethodsIncompatible: {

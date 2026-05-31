@@ -13,6 +13,7 @@ export interface ForceThemeRegistry {
 	readonly dominantForcedTheme?: string;
 	readonly register: (request: Omit<ForceThemeRequest, "timestamp">) => void;
 	readonly unregister: (id: symbol) => void;
+	readonly requests: ForceThemeRequest[];
 }
 
 export function isBlockedByAncestor(request: ForceThemeRequest, requestMap: Map<symbol, ForceThemeRequest>) {
@@ -38,9 +39,7 @@ export function createForceThemeRegistry(): ForceThemeRegistry {
 
 		const requestMap = new Map(requests.map((request) => [request?.id, request]));
 
-		const validRequests = requests.filter(
-			(request) => request?.forcedTheme && !isBlockedByAncestor(request, requestMap),
-		);
+		const validRequests = requests.filter((request) => !isBlockedByAncestor(request, requestMap));
 
 		if (validRequests.length === 0) return undefined;
 
@@ -69,13 +68,19 @@ export function createForceThemeRegistry(): ForceThemeRegistry {
 						existing.parentId !== request.parentId ||
 						existing.overrideChildren !== request.overrideChildren
 					)
-						requests = requests.map((r, i) => (i === index ? { ...request, timestamp } : r));
+						requests = requests.map((otherRequest, otherIndex) =>
+							otherIndex === index ? { ...request, timestamp } : otherRequest,
+						);
 				} else requests = [...requests, { ...request, timestamp }];
 			});
 		},
 
 		unregister(id: symbol) {
 			untrack(() => (requests = requests.filter((request) => request?.id !== id)));
+		},
+
+		get requests() {
+			return requests;
 		},
 	};
 }

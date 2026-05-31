@@ -33,7 +33,7 @@ export function createThemeHandle<Themes extends ThemeRecord>(
 			cookies: event.cookies,
 		});
 
-		if (persistedTheme) themeManager.setTheme(persistedTheme, false);
+		if (persistedTheme) await themeManager.setTheme(persistedTheme, { shouldPersist: false });
 
 		const resolvedCspNonce = cspNonce ?? event.locals?.svThemesScriptNonce;
 

@@ -208,6 +208,36 @@ describe("dominantForcedTheme", () => {
 		forceThemeRegistry.unregister(id2);
 	});
 
+	it("treats undefined forced themes as valid requests", () => {
+		const id1 = Symbol();
+		const id2 = Symbol();
+
+		forceThemeRegistry.register({
+			id: id1,
+			forcedTheme: undefined,
+			priority: 1,
+			overrideChildren: false,
+		});
+
+		flushSync();
+
+		forceThemeRegistry.register({
+			id: id2,
+			forcedTheme: "light",
+			priority: 0,
+			overrideChildren: false,
+		});
+
+		flushSync();
+
+		const result = forceThemeRegistry.dominantForcedTheme;
+
+		expect(result).toBeUndefined();
+
+		forceThemeRegistry.unregister(id1);
+		forceThemeRegistry.unregister(id2);
+	});
+
 	it("sorts requests by timestamp in descending order when priorities are equal", () => {
 		const spy = vi.spyOn(Date, "now");
 		spy.mockReturnValue(1000);
@@ -247,6 +277,7 @@ describe("dominantForcedTheme", () => {
 	it("keeps the older registered item when a newer registered item has a lower timestamp but is registered first", () => {
 		const spy = vi.spyOn(Date, "now");
 		spy.mockReturnValue(2000);
+
 		const id1 = Symbol();
 
 		forceThemeRegistry.register({
@@ -299,6 +330,14 @@ describe("register", () => {
 
 		flushSync();
 
+		expect(forceThemeRegistry.requests.length).toBe(1);
+		expect(forceThemeRegistry.requests[0]).toMatchObject({
+			id,
+			forcedTheme: "dark",
+			priority: 0,
+			overrideChildren: false,
+		});
+
 		const result = forceThemeRegistry.dominantForcedTheme;
 
 		expect(result).toBe("dark");
@@ -321,6 +360,11 @@ describe("register", () => {
 
 		flushSync();
 
+		expect(forceThemeRegistry.requests[0]).toMatchObject({
+			id,
+			forcedTheme: "dark",
+		});
+
 		spy.mockReturnValue(2000);
 
 		forceThemeRegistry.register({
@@ -332,14 +376,19 @@ describe("register", () => {
 
 		flushSync();
 
-		const result = forceThemeRegistry.dominantForcedTheme;
-
-		expect(result).toBe("light");
+		expect(forceThemeRegistry.requests.length).toBe(1);
+		expect(forceThemeRegistry.requests[0]).toMatchObject({
+			id,
+			forcedTheme: "light",
+		});
 
 		forceThemeRegistry.unregister(id);
 	});
 
 	it("updates when priority changes", () => {
+		const spy = vi.spyOn(Date, "now");
+		spy.mockReturnValue(1000);
+
 		const id = Symbol();
 
 		forceThemeRegistry.register({
@@ -351,6 +400,13 @@ describe("register", () => {
 
 		flushSync();
 
+		expect(forceThemeRegistry.requests[0]).toMatchObject({
+			id,
+			priority: 0,
+		});
+
+		spy.mockReturnValue(2000);
+
 		forceThemeRegistry.register({
 			id,
 			forcedTheme: "dark",
@@ -360,14 +416,19 @@ describe("register", () => {
 
 		flushSync();
 
-		const result = forceThemeRegistry.dominantForcedTheme;
-
-		expect(result).toBe("dark");
+		expect(forceThemeRegistry.requests.length).toBe(1);
+		expect(forceThemeRegistry.requests[0]).toMatchObject({
+			id,
+			priority: 1,
+		});
 
 		forceThemeRegistry.unregister(id);
 	});
 
 	it("updates when parentId changes", () => {
+		const spy = vi.spyOn(Date, "now");
+		spy.mockReturnValue(1000);
+
 		const parent1 = Symbol();
 		const parent2 = Symbol();
 		const id = Symbol();
@@ -382,6 +443,14 @@ describe("register", () => {
 
 		flushSync();
 
+		expect(forceThemeRegistry.requests.length).toBe(1);
+		expect(forceThemeRegistry.requests[0]).toMatchObject({
+			id,
+			parentId: parent1,
+		});
+
+		spy.mockReturnValue(2000);
+
 		forceThemeRegistry.register({
 			id,
 			parentId: parent2,
@@ -392,10 +461,19 @@ describe("register", () => {
 
 		flushSync();
 
+		expect(forceThemeRegistry.requests.length).toBe(1);
+		expect(forceThemeRegistry.requests[0]).toMatchObject({
+			id,
+			parentId: parent2,
+		});
+
 		forceThemeRegistry.unregister(id);
 	});
 
 	it("updates when overrideChildren changes", () => {
+		const spy = vi.spyOn(Date, "now");
+		spy.mockReturnValue(1000);
+
 		const id = Symbol();
 
 		forceThemeRegistry.register({
@@ -407,6 +485,13 @@ describe("register", () => {
 
 		flushSync();
 
+		expect(forceThemeRegistry.requests[0]).toMatchObject({
+			id,
+			overrideChildren: false,
+		});
+
+		spy.mockReturnValue(2000);
+
 		forceThemeRegistry.register({
 			id,
 			forcedTheme: "dark",
@@ -415,6 +500,12 @@ describe("register", () => {
 		});
 
 		flushSync();
+
+		expect(forceThemeRegistry.requests.length).toBe(1);
+		expect(forceThemeRegistry.requests[0]).toMatchObject({
+			id,
+			overrideChildren: true,
+		});
 
 		forceThemeRegistry.unregister(id);
 	});
@@ -434,6 +525,11 @@ describe("register", () => {
 
 		flushSync();
 
+		expect(forceThemeRegistry.requests[0]).toMatchObject({
+			id: idA,
+			forcedTheme: "themeA",
+		});
+
 		spy.mockReturnValue(2000);
 
 		forceThemeRegistry.register({
@@ -444,6 +540,12 @@ describe("register", () => {
 		});
 
 		flushSync();
+
+		expect(forceThemeRegistry.requests.length).toBe(1);
+		expect(forceThemeRegistry.requests[0]).toMatchObject({
+			id: idA,
+			forcedTheme: "themeA",
+		});
 
 		spy.mockReturnValue(1500);
 
@@ -457,6 +559,12 @@ describe("register", () => {
 		});
 
 		flushSync();
+
+		expect(forceThemeRegistry.requests.length).toBe(2);
+		expect(forceThemeRegistry.requests[1]).toMatchObject({
+			id: idB,
+			forcedTheme: "themeB",
+		});
 
 		const result = forceThemeRegistry.dominantForcedTheme;
 

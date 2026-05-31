@@ -157,8 +157,37 @@ describe("themeSelector", () => {
 		});
 
 		await vi.waitFor(() =>
-			expect(consoleErrorSpy).toHaveBeenCalledWith(ThemeManagerError.themeNotFound("missing").message),
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				expect.stringContaining(ThemeManagerError.themeNotFound("missing").message),
+			),
 		);
+
+		cleanup();
+	});
+
+	it("calls onError callback when setTheme fails", async () => {
+		const node = document.createElement("button");
+
+		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+		vi.spyOn(themeManagerContextModule, "getThemeManager").mockReturnValue(themeManager);
+
+		const onError = vi.fn();
+
+		const cleanup = $effect.root(() => {
+			const action = themeSelector(node, {
+				theme: "missing",
+				onError,
+			});
+
+			flushSync();
+
+			node.click();
+
+			action.destroy?.();
+		});
+
+		await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
 
 		cleanup();
 	});

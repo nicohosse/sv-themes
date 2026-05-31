@@ -13,6 +13,11 @@ export interface BeforeThemeChangeEvent<Themes extends ThemeRecord> extends Them
 	readonly defaultPrevented: boolean;
 }
 
+export interface ThemeSelectEvent<Themes extends ThemeRecord> extends ThemeChangeEvent<Themes> {
+	readonly preventDefault: () => void;
+	readonly defaultPrevented: boolean;
+}
+
 export interface SystemThemeChangeEvent<Themes extends ThemeRecord> {
 	readonly systemTheme: SystemTheme;
 	readonly resolvedSystemTheme: keyof Themes;
@@ -27,6 +32,7 @@ export type UnforcedThemeEvent = NonNullable<unknown>;
 export type ThemeManagerEvents<Themes extends ThemeRecord> = {
 	beforeChange: BeforeThemeChangeEvent<Themes>;
 	afterChange: AfterThemeChangeEvent<Themes>;
+	select: ThemeSelectEvent<Themes>;
 	systemChange: SystemThemeChangeEvent<Themes>;
 	forced: ForcedThemeEvent<Themes>;
 	unforced: UnforcedThemeEvent;

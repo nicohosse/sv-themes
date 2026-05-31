@@ -15,7 +15,6 @@ export {
 	type AfterThemeChangeEvent,
 	type BeforeThemeChangeEvent,
 	createAppThemeManager,
-	createThemeManager,
 	DEFAULT_STORAGE_HYBRID,
 	type ForcedThemeEvent,
 	HYBRID_STORAGE_METHODS,

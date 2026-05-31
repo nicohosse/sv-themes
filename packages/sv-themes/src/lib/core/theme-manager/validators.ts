@@ -4,10 +4,14 @@ import { ThemeManagerError } from "./errors.js";
 import type { ResolvedThemeManagerConfig } from "./resolver.js";
 
 export function validateRequestedTheme<const Themes extends ThemeRecord>(
-	themes: Themes,
-	requestedTheme: keyof Themes,
+	config: ResolvedThemeManagerConfig<Themes>,
+	requestedTheme: keyof Themes | "system",
 ): Result<void, ThemeManagerError> {
-	if (!(requestedTheme in themes)) return err(ThemeManagerError.themeNotFound(requestedTheme.toString()));
+	if (requestedTheme === "system" && config.systemThemes.kind === "disabled")
+		return err(ThemeManagerError.systemThemesDisabled);
+
+	if (requestedTheme !== "system" && !(requestedTheme in config.themes))
+		return err(ThemeManagerError.themeNotFound(requestedTheme.toString()));
 
 	return ok();
 }
@@ -62,7 +66,7 @@ export function validateThemeManagerConfig<const Themes extends ThemeRecord>(
 	const themesResult = validateThemes(config);
 	if (themesResult.isErr()) errors.push(...themesResult.error);
 
-	const selectedThemeResult = validateRequestedTheme(config.themes, config.initialTheme);
+	const selectedThemeResult = validateRequestedTheme(config, config.initialTheme);
 	if (selectedThemeResult.isErr()) errors.push(selectedThemeResult.error);
 
 	if (config.systemThemes.kind === "enabled") {
