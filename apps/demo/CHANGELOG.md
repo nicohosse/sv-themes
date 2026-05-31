@@ -1,5 +1,12 @@
 # demo
 
+## 0.9.2
+
+### Patch Changes
+
+- Updated dependencies [9d47129]
+  - sv-themes@0.9.3
+
 ## 0.9.1
 
 ### Patch Changes

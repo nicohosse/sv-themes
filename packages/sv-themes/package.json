@@ -1,7 +1,7 @@
 {
 	"name": "sv-themes",
 	"description": "SSR-safe Svelte 5 theme management library with advanced features like tab sync, FOUC prevention, scoped overrides, and more.",
-	"version": "0.9.2",
+	"version": "0.9.3",
 	"author": "Nico Hosse <https://github.com/nicohosse>",
 	"license": "MIT",
 	"type": "module",
