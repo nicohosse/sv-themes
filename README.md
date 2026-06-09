@@ -60,6 +60,9 @@ export const APP_THEMES = createThemes([
 > **⚠️ Warning:**
 > **Theme Order & System Fallbacks:** The order of themes in the array defines their priority within their respective type. If system themes are enabled but explicit `mappings` are omitted, the first theme of type `"light"` and the first theme of type `"dark"` are automatically selected as the fallback targets for system preference resolution.
 
+> **📝 Note:**
+> **Class Names:** If you don't provide a `className` it will default to the theme id.
+
 > **💡 Tip:**
 > **Flexible Color Values:** The `color` property supports standard CSS names (e.g., `green`), HEX codes (e.g., `#fff`), and CSS custom properties (variables) with optional fallbacks (e.g., `var(--nature, green)`).
 
@@ -268,6 +271,27 @@ on<Event extends keyof ThemeManagerEvents<Themes>>(
     event: Event,
     handler: Listener<ThemeManagerEvents<Themes>[Event]>
 ): () => void;
+```
+
+---
+
+### `ThemesOf<Manager>` Utility Type
+
+A TypeScript utility type that extracts the union of valid theme IDs directly from your instantiated `ThemeManager` type. 
+
+This is useful for strictly typing component props, function arguments, or state variables in other parts of your codebase without having to manually export or maintain a separate theme union type.
+
+```typescript
+import type { ThemesOf } from "sv-themes";
+import { themeManager } from "$lib/theme-manager.svelte";
+
+// 1. Extract the union of allowed theme IDs (e.g., "light" | "dark" | "nature")
+export type AppTheme = ThemesOf<typeof themeManager>;
+
+// 2. Use it to type your component props or helper functions
+export function setCustomStyle(theme: AppTheme) {
+	// TypeScript guarantees only registered theme IDs can be passed here
+}
 ```
 
 ---

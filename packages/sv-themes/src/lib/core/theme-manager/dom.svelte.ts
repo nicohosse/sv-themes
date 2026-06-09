@@ -202,7 +202,7 @@ export function registerThemeManager<const Themes extends ThemeRecord>(themeMana
 		});
 	});
 
-	$effect(() => {
+	$effect.pre(() => {
 		themeManager.resolvedTheme;
 		themeManager.resolvedUseSystemTheme;
 

@@ -177,7 +177,7 @@ describe("updateMetaTags", () => {
 
 		const meta = document.querySelector('meta[name="theme-color"]');
 
-		expect(meta?.getAttribute("content")).toBe("rgb(255, 255, 255)");
+		expect(meta?.getAttribute("content")).toBe("#ffffff");
 	});
 
 	it("logs error and removes meta tag if non-hex theme-color cannot be resolved", () => {
@@ -694,16 +694,38 @@ describe("registerThemeManager", () => {
 		cleanup();
 	});
 
-	it("accesses reactive properties resolvedTheme and resolvedUseSystemTheme, then updates the DOM", async () => {
+	it("accesses reactive properties resolvedTheme and resolvedUseSystemTheme, then updates the DOM before normal $effect runes run", async () => {
 		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
+		let effectRunCount = 0;
+		let isDomUpdatedDuringEffect = false;
+
 		const cleanup = $effect.root(() => {
+			$effect(() => {
+				const theme = themeManager.resolvedTheme;
+
+				effectRunCount++;
+
+				const expectedClass = MOCK_THEME_MANAGER_CONFIG.themes[theme]?.className ?? theme;
+				isDomUpdatedDuringEffect = document.documentElement.classList.contains(expectedClass);
+			});
+
 			registerThemeManager(themeManager);
 		});
 
 		flushSync();
 
-		expect(document.documentElement.classList).toContain(MOCK_THEME_MANAGER_CONFIG.themes.light.className ?? "light");
+		expect(effectRunCount).toBe(1);
+		expect(isDomUpdatedDuringEffect).toBe(true);
+
+		isDomUpdatedDuringEffect = false;
+
+		await themeManager.setTheme("dark");
+
+		flushSync();
+
+		expect(effectRunCount).toBe(2);
+		expect(isDomUpdatedDuringEffect).toBe(true);
 
 		cleanup();
 	});

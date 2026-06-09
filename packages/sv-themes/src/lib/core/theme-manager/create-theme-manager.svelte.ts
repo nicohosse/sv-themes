@@ -444,7 +444,6 @@ export function createThemeManager<const Themes extends ThemeRecord>(
 
 /**
  * Helper that instantiates the theme manager and returns Svelte context and DOM registration functions.
- * Prefer this helper over `createThemeManager`.
  *
  * @param config - Initial configuration.
  * @returns A `Result` containing the manager, a function to retrieve it via Svelte context, and its registration lifecycle function or a list of validation errors.
