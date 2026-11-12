@@ -1,9 +1,9 @@
 import type { Result, ResultAsync } from "neverthrow";
-import type { ThemeRecord } from "$lib/index.js";
-import type { CookieOptions } from "$lib/utils/cookie.js";
+import type { CookieOptions } from "#lib/utils/cookie.js";
+import type { ThemeRecord } from "../theme/theme.js";
 import type { ThemeManagerError } from "./errors.js";
 import type { Listener, ThemeManagerEvents } from "./events.js";
-import type { ForceThemeRegistry } from "./force-theme-registry.svelte.js";
+import type { ForceThemeRegistry } from "./forceThemeRegistry.svelte.js";
 
 export type ThemeAttribute = "class" | `data-${string}`;
 
@@ -179,6 +179,11 @@ export interface ThemeManager<Themes extends ThemeRecord = ThemeRecord> {
 	readonly useThemeColor: boolean;
 
 	/**
+	 * If active, swaps the document favicon to the active theme's `favicon` property when one is defined.
+	 */
+	readonly useFavicon: boolean;
+
+	/**
 	 * The custom attribute set on `<html>` when a forced theme is active (e.g., `"data-is-theme-forced"`).
 	 */
 	readonly isThemeForcedAttribute?: string;
@@ -228,6 +233,12 @@ export interface ThemeManager<Themes extends ThemeRecord = ThemeRecord> {
 			commit?: () => Result<void, ThemeManagerError>,
 			shouldPersist?: boolean,
 		) => ResultAsync<void, ThemeManagerError>;
+
+		/**
+		 * Applies a persisted theme synchronously during client initialization.
+		 * This intentionally bypasses events and persistence to prevent a flash of the wrong theme.
+		 */
+		applyPersistedTheme: (theme: string) => void;
 
 		setSystemTheme: (systemTheme: SystemTheme) => ResultAsync<void, ThemeManagerError>;
 

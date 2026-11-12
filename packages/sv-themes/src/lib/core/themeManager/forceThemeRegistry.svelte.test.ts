@@ -5,7 +5,7 @@ import {
 	type ForceThemeRegistry,
 	type ForceThemeRequest,
 	isBlockedByAncestor,
-} from "$lib/core/theme-manager/force-theme-registry.svelte.js";
+} from "#lib/core/themeManager/forceThemeRegistry.svelte.js";
 
 describe("isBlockedByAncestor", () => {
 	it("returns false if there is no parent ID", () => {

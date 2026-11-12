@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { testEnv } from "$lib/tests/test-environment.js";
+import { testEnv } from "#lib/tests/testEnvironment.js";
 import {
 	getResolverElement,
 	normalizeColorToHex,
@@ -7,7 +7,7 @@ import {
 	parseRgb,
 	resolveCssColor,
 	rgbToHex,
-} from "./resolve-css-color.js";
+} from "./resolveCssColor.js";
 
 describe("getResolverElement", () => {
 	it("should get or create and append a hidden resolver element", () => {
@@ -29,39 +29,48 @@ describe("getResolverElement", () => {
 });
 
 describe("resolveCssColor", () => {
-	it("should return undefined when resolverElement is undefined", () => {
+	it("should return an Err when resolverElement is undefined", () => {
 		testEnv().browser(false).apply();
-		expect(resolveCssColor("red")).toBeUndefined();
+
+		expect(resolveCssColor("red").isErr()).toBe(true);
 	});
 
 	it("should resolve regular css colors", () => {
-		expect(resolveCssColor("red")).toBe("#ff0000");
+		expect(resolveCssColor("red")._unsafeUnwrap()).toBe("#ff0000");
 	});
 
 	it("should resolve css variables", () => {
 		document.documentElement.style.setProperty("--primary", "red");
 
-		expect(resolveCssColor("var(--primary)")).toBe("#ff0000");
+		expect(resolveCssColor("var(--primary)")._unsafeUnwrap()).toBe("#ff0000");
 	});
 
 	it("should resolve fallback values", () => {
-		expect(resolveCssColor("var(--missing, blue)")).toBe("#0000ff");
+		expect(resolveCssColor("var(--missing, blue)")._unsafeUnwrap()).toBe("#0000ff");
 	});
 
-	it("should return undefined when variable is missing and fallback is disabled", () => {
+	it("should return an Err when variable is missing and fallback is disabled", () => {
 		expect(
 			resolveCssColor("var(--missing, blue)", {
 				allowFallback: false,
-			}),
-		).toBeUndefined();
+			}).isErr(),
+		).toBe(true);
 	});
 
-	it("should return undefined for missing variable without fallback", () => {
-		expect(resolveCssColor("var(--missing)")).toBeUndefined();
+	it("should return an Err for missing variable without fallback", () => {
+		expect(resolveCssColor("var(--missing)").isErr()).toBe(true);
 	});
 
 	it("should handle whitespace in fallback", () => {
-		expect(resolveCssColor("var(--missing,   red   )")).toBe("#ff0000");
+		expect(resolveCssColor("var(--missing,   red   )")._unsafeUnwrap()).toBe("#ff0000");
+	});
+
+	it("should preserve alpha as an 8-digit hex value", () => {
+		expect(resolveCssColor("rgba(255, 0, 0, 0.5)")._unsafeUnwrap()).toBe("#ff000080");
+	});
+
+	it("should return an Err for unsupported colors", () => {
+		expect(resolveCssColor("not-a-real-color").isErr()).toBe(true);
 	});
 });
 
@@ -76,15 +85,34 @@ describe("rgbToHex", () => {
 	it("should clamp values outside the 0 to 1 range", () => {
 		expect(rgbToHex(-0.5, 1.5, 0.5)).toBe("#00ff80");
 	});
+
+	it("should append alpha when the color is translucent", () => {
+		expect(rgbToHex(1, 0, 0, 0.5)).toBe("#ff000080");
+		expect(rgbToHex(1, 0, 0, 0)).toBe("#ff000000");
+		expect(rgbToHex(1, 0, 0, 1)).toBe("#ff0000");
+	});
 });
 
 describe("oklchToRgb", () => {
 	it("should convert oklch string to normalized RGB array", () => {
-		expect(oklchToRgb("oklch(1 0 0)")).toEqual([expect.closeTo(1), expect.closeTo(1), expect.closeTo(1)]);
+		expect(oklchToRgb("oklch(1 0 0)")).toEqual([expect.closeTo(1), expect.closeTo(1), expect.closeTo(1), 1]);
 	});
 
 	it("should handle percentages and deg units", () => {
-		expect(oklchToRgb("oklch(100% 0 0deg)")).toEqual([expect.closeTo(1), expect.closeTo(1), expect.closeTo(1)]);
+		expect(oklchToRgb("oklch(100% 0 0deg)")).toEqual([expect.closeTo(1), expect.closeTo(1), expect.closeTo(1), 1]);
+	});
+
+	it("should preserve alpha", () => {
+		expect(oklchToRgb("oklch(1 0 0 / 40%)")).toEqual([
+			expect.closeTo(1),
+			expect.closeTo(1),
+			expect.closeTo(1),
+			expect.closeTo(0.4),
+		]);
+	});
+
+	it("should handle scientific notation", () => {
+		expect(oklchToRgb("oklch(1 1e-7 0)")).toEqual([expect.closeTo(1), expect.closeTo(1), expect.closeTo(1), 1]);
 	});
 
 	it("should return undefined for non-matching strings", () => {
@@ -94,46 +122,52 @@ describe("oklchToRgb", () => {
 
 describe("parseRgb", () => {
 	it("should parse rgb/rgba color strings into normalized RGB components", () => {
-		const [r1, g1, b1] = parseRgb("rgb(255, 0, 127)");
+		const [r1, g1, b1, a1] = parseRgb("rgb(255, 0, 127)") ?? [];
 		expect(r1).toBe(1);
 		expect(g1).toBe(0);
 		expect(b1).toBeCloseTo(127 / 255);
+		expect(a1).toBe(1);
 
-		const [r2, g2, b2] = parseRgb("rgba(0, 255, 0, 0.5)");
+		const [r2, g2, b2, a2] = parseRgb("rgba(0, 255, 0, 0.5)") ?? [];
 		expect(r2).toBe(0);
 		expect(g2).toBe(1);
 		expect(b2).toBe(0);
+		expect(a2).toBe(0.5);
 	});
 
-	it("should throw an error for invalid input formats", () => {
-		expect(() => parseRgb("invalid-rgb-format")).toThrow("Unsupported color: invalid-rgb-format");
+	it("should parse modern rgb syntax with a slash alpha", () => {
+		expect(parseRgb("rgb(255 0 0 / 25%)")).toEqual([1, 0, 0, 0.25]);
+	});
+
+	it("should return undefined for invalid input formats", () => {
+		expect(parseRgb("invalid-rgb-format")).toBeUndefined();
 	});
 });
 
 describe("normalizeColorToHex", () => {
-	it("should throw when resolverElement is undefined", () => {
+	it("should return an Err when resolverElement is undefined", () => {
 		testEnv().browser(false).apply();
-		expect(() => normalizeColorToHex("red")).toThrow("No DOM available for color resolution.");
+		expect(normalizeColorToHex("red").isErr()).toBe(true);
 	});
 
 	it("should normalize named colors", () => {
-		expect(normalizeColorToHex("red")).toBe("#ff0000");
+		expect(normalizeColorToHex("red")._unsafeUnwrap()).toBe("#ff0000");
 	});
 
 	it("should normalize hex colors", () => {
-		expect(normalizeColorToHex("#000")).toBe("#000000");
+		expect(normalizeColorToHex("#000")._unsafeUnwrap()).toBe("#000000");
 	});
 
 	it("should normalize rgb colors", () => {
-		expect(normalizeColorToHex("rgb(255, 0, 0)")).toBe("#ff0000");
+		expect(normalizeColorToHex("rgb(255, 0, 0)")._unsafeUnwrap()).toBe("#ff0000");
 	});
 
 	it("should normalize oklch colors", () => {
-		expect(normalizeColorToHex("oklch(1 0 0)")).toBe("#ffffff");
+		expect(normalizeColorToHex("oklch(1 0 0)")._unsafeUnwrap()).toBe("#ffffff");
 	});
 
 	it("resets the resolverElement's color", () => {
-		expect(resolveCssColor("red")).toBe("#ff0000");
+		expect(resolveCssColor("red").isOk()).toBe(true);
 		expect(getResolverElement()?.style.color).toBe("");
 	});
 });

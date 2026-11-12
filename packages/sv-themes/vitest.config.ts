@@ -4,7 +4,15 @@ import { svelteTesting } from "@testing-library/svelte/vite";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-	plugins: [svelte(), svelteTesting()],
+	plugins: [
+		svelte({
+			configFile: false,
+			compilerOptions: {
+				runes: ({ filename }) => (filename.split(/[/\\]/).includes("node_modules") ? undefined : true),
+			},
+		}),
+		svelteTesting(),
+	],
 	test: {
 		environment: "jsdom",
 		restoreMocks: true,
@@ -13,7 +21,7 @@ export default defineConfig({
 		setupFiles: ["./src/lib/tests/setup.ts"],
 		include: ["src/**/*.test.ts"],
 		alias: {
-			$lib: fileURLToPath(new URL("./src/lib", import.meta.url)),
+			"#lib": fileURLToPath(new URL("./src/lib", import.meta.url)),
 		},
 		coverage: {
 			exclude: [
@@ -21,8 +29,8 @@ export default defineConfig({
 				"tests/**.ts",
 				"core/errors.ts",
 				"core/theme/index.ts",
-				"core/theme-manager/errors.ts",
-				"core/theme-manager/events.ts",
+				"core/themeManager/errors.ts",
+				"core/themeManager/events.ts",
 			],
 		},
 	},

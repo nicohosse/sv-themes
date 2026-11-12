@@ -1,10 +1,10 @@
 import { ok } from "neverthrow";
 import { flushSync } from "svelte";
 import { describe, expect, it, vi } from "vitest";
-import { createThemes } from "$lib/index.js";
-import { expectOk } from "$lib/tests/setup.js";
-import { testEnv } from "$lib/tests/test-environment.js";
-import { createMockThemeManagerConfig, MOCK_THEME_MANAGER_CONFIG } from "$lib/tests/theme-manager.js";
+import { createThemes } from "#lib/index.js";
+import { expectOk } from "#lib/tests/setup.js";
+import { testEnv } from "#lib/tests/testEnvironment.js";
+import { createMockThemeManagerConfig, MOCK_THEME_MANAGER_CONFIG } from "#lib/tests/themeManager.js";
 import {
 	cleanupThemeClasses,
 	createThemeManager,
@@ -16,7 +16,7 @@ import {
 	updateMetaTags,
 } from "./index.js";
 import * as persistenceModule from "./persistence.js";
-import { INTERNAL as THEME_MANAGER_INTERNAL } from "./theme-manager.js";
+import { INTERNAL as THEME_MANAGER_INTERNAL } from "./themeManager.js";
 
 describe("updateMetaTags", () => {
 	it("does nothing when not in browser environment", () => {
@@ -180,6 +180,70 @@ describe("updateMetaTags", () => {
 		expect(meta?.getAttribute("content")).toBe("#ffffff");
 	});
 
+	it("preserves alpha when updating a non-hex theme-color", () => {
+		const themes = createThemes([{ id: "light", type: "light", color: "rgba(255, 0, 0, 0.5)" }]);
+
+		const themeManager = expectOk(
+			createThemeManager(
+				createMockThemeManagerConfig({
+					themes,
+				}),
+			),
+		);
+
+		updateMetaTags(themeManager);
+
+		const meta = document.querySelector('meta[name="theme-color"]');
+
+		expect(meta?.getAttribute("content")).toBe("#ff000080");
+	});
+
+	it("creates or updates the favicon link when the resolved theme defines one", () => {
+		const themes = createThemes([{ id: "light", type: "light", favicon: "/light.svg" }]);
+
+		const themeManager = expectOk(
+			createThemeManager(
+				createMockThemeManagerConfig({
+					themes,
+				}),
+			),
+		);
+
+		updateMetaTags(themeManager);
+
+		expect(document.querySelector('link[rel~="icon"]')?.getAttribute("href")).toBe("/light.svg");
+	});
+
+	it("skips the favicon when useFavicon is false", () => {
+		const themes = createThemes([{ id: "light", type: "light", favicon: "/light.svg" }]);
+
+		const themeManager = expectOk(
+			createThemeManager(
+				createMockThemeManagerConfig({
+					themes,
+					useFavicon: false,
+				}),
+			),
+		);
+
+		updateMetaTags(themeManager);
+
+		expect(document.querySelector('link[rel~="icon"]')).toBeNull();
+	});
+
+	it("leaves the existing favicon untouched when the theme has no favicon", () => {
+		const existingLink = document.createElement("link");
+		existingLink.rel = "icon";
+		existingLink.href = "/default.svg";
+		document.head.appendChild(existingLink);
+
+		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+		updateMetaTags(themeManager);
+
+		expect(document.querySelector('link[rel~="icon"]')?.getAttribute("href")).toBe("/default.svg");
+	});
+
 	it("logs error and removes meta tag if non-hex theme-color cannot be resolved", () => {
 		const themes = createThemes([{ id: "light", type: "light", color: "var(--missing)" }]);
 
@@ -200,7 +264,7 @@ describe("updateMetaTags", () => {
 		updateMetaTags(themeManager);
 
 		expect(consoleSpy).toHaveBeenCalledExactlyOnceWith(
-			"The color of theme 'light' couldn't be resolved. Removing theme-color meta element.",
+			"The color of theme 'light' couldn't be resolved. CSS variable '--missing' is not defined and has no fallback. Removing theme-color meta element.",
 		);
 
 		themeColorMetaElement = document.querySelector('meta[name="theme-color"]');
@@ -504,6 +568,30 @@ describe("registerStorageListener", () => {
 		cleanup();
 	});
 
+	it("ignores storage events without a new value (removeItem/clear)", () => {
+		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+		const setThemeSpy = vi.spyOn(themeManager, "setTheme");
+		const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+		const cleanup = registerStorageListener(themeManager);
+
+		const event = new Event("storage");
+		Object.defineProperties(event, {
+			key: { value: "theme" },
+			oldValue: { value: "light" },
+			newValue: { value: null },
+			storageArea: { value: globalThis.localStorage },
+		});
+
+		globalThis.dispatchEvent(event);
+
+		expect(setThemeSpy).not.toHaveBeenCalled();
+		expect(consoleErrorSpy).not.toHaveBeenCalled();
+
+		cleanup();
+	});
+
 	it("ignores storage events for the currently selected theme", () => {
 		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
@@ -581,13 +669,10 @@ describe("registerStorageListener", () => {
 });
 
 describe("registerThemeManager", () => {
-	it("sets up storage and media listeners, and applies persisted theme when present", async () => {
+	it("sets up storage and media listeners, and applies persisted theme synchronously", () => {
 		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
-		const beforeChangeSpy = vi.fn();
-		themeManager.on("beforeChange", beforeChangeSpy);
-
-		const getPersistedThemeSpy = vi.spyOn(persistenceModule, "getPersistedTheme").mockResolvedValue("dark");
+		const getPersistedThemeSyncSpy = vi.spyOn(persistenceModule, "getPersistedThemeSync").mockReturnValue("dark");
 
 		const cleanup = $effect.root(() => {
 			registerThemeManager(themeManager);
@@ -595,23 +680,19 @@ describe("registerThemeManager", () => {
 
 		flushSync();
 
-		await new Promise((resolve) => setTimeout(resolve, 0));
-
-		expect(beforeChangeSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				to: "dark",
-			}),
-		);
-
-		expect(getPersistedThemeSpy).toHaveBeenCalledWith(themeManager);
+		// The synchronous path intentionally bypasses transition events so the very
+		// first render matches the bootloader and no flash occurs.
+		expect(themeManager.selectedTheme).toBe("dark");
+		expect(themeManager.useSystemTheme).toBe(false);
+		expect(getPersistedThemeSyncSpy).toHaveBeenCalledWith(themeManager);
 
 		cleanup();
 	});
 
-	it("does not call setTheme if there is no persisted theme", async () => {
+	it("does not change the theme if there is no persisted theme", () => {
 		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
-		const getPersistedThemeSpy = vi.spyOn(persistenceModule, "getPersistedTheme").mockResolvedValue(undefined);
+		const getPersistedThemeSyncSpy = vi.spyOn(persistenceModule, "getPersistedThemeSync").mockReturnValue(undefined);
 		const setThemeSpy = vi.spyOn(themeManager, "setTheme");
 
 		const cleanup = $effect.root(() => {
@@ -620,9 +701,8 @@ describe("registerThemeManager", () => {
 
 		flushSync();
 
-		await new Promise((resolve) => setTimeout(resolve, 0));
-
-		expect(getPersistedThemeSpy).toHaveBeenCalledWith(themeManager);
+		expect(getPersistedThemeSyncSpy).toHaveBeenCalledWith(themeManager);
+		expect(themeManager.selectedTheme).toBe("light");
 		expect(setThemeSpy).not.toHaveBeenCalled();
 
 		cleanup();

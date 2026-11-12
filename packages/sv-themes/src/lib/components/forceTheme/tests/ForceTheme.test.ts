@@ -1,11 +1,11 @@
 import { createRawSnippet, mount, unmount } from "svelte";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import * as themeManagerContextModule from "$lib/contexts/theme-manager-context.svelte.js";
-import { createThemeManager } from "$lib/core/theme-manager/create-theme-manager.svelte.js";
-import { THEME_MANAGER_INTERNAL } from "$lib/core/theme-manager/index.js";
-import { expectOk } from "$lib/tests/setup.js";
-import { testEnv } from "$lib/tests/test-environment.js";
-import { MOCK_THEME_MANAGER_CONFIG } from "$lib/tests/theme-manager.js";
+import * as themeManagerContextModule from "#lib/contexts/themeManagerContext.svelte.js";
+import { createThemeManager } from "#lib/core/themeManager/createThemeManager.svelte.js";
+import { THEME_MANAGER_INTERNAL } from "#lib/core/themeManager/index.js";
+import { expectOk } from "#lib/tests/setup.js";
+import { testEnv } from "#lib/tests/testEnvironment.js";
+import { MOCK_THEME_MANAGER_CONFIG } from "#lib/tests/themeManager.js";
 import ForceTheme from "../ForceTheme.svelte";
 import NestedForceThemesFixture from "./NestedForceThemes.fixture.svelte";
 
@@ -103,9 +103,15 @@ describe("ForceTheme", () => {
 			},
 		});
 
-		expect(document.head.innerHTML).toContain(
-			'<meta name="sv-themes-force-theme" content="forcedTheme=dark;priority=0;overrideChildren=true">',
-		);
+		const meta = document.head.querySelector<HTMLMetaElement>('meta[name="sv-themes-force-theme"]');
+
+		expect(meta).not.toBeNull();
+		expect(JSON.parse(decodeURIComponent(meta?.content ?? ""))).toEqual({
+			forcedTheme: "dark",
+			priority: 0,
+			overrideChildren: true,
+			depth: 0,
+		});
 
 		unmount(component);
 	});

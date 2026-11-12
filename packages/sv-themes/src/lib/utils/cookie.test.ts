@@ -1,7 +1,7 @@
 import type { Cookies } from "@sveltejs/kit";
 import { describe, expect, it, vi } from "vitest";
-import { createMockCookies } from "$lib/tests/cookie.js";
-import { testEnv } from "$lib/tests/test-environment.js";
+import { createMockCookies } from "#lib/tests/cookie.js";
+import { testEnv } from "#lib/tests/testEnvironment.js";
 import { getCookie, setCookie } from "./cookie.js";
 
 describe("setCookie", () => {

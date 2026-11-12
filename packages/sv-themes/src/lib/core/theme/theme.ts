@@ -1,8 +1,15 @@
+export type ThemeType = "light" | "dark";
+
 export interface Theme {
 	id: string;
 	className?: string;
-	type: "light" | "dark";
+	type: ThemeType;
 	color?: string;
+	/**
+	 * Optional favicon URL (or data URI) that is applied while this theme is active.
+	 * When omitted, the existing favicon is left untouched.
+	 */
+	favicon?: string;
 }
 
 export type ThemeRecord<Keys extends string = string> = Record<Keys, Readonly<Theme>>;

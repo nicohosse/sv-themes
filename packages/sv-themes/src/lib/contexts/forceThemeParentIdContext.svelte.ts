@@ -1,13 +1,18 @@
 import { createContext } from "svelte";
 
-const [internalGetForceThemeParentId, internalSetForceThemeParentId] = createContext<symbol>();
+export interface ForceThemeParentContext {
+	id: symbol;
+	depth: number;
+}
 
-export const getForceThemeParentId = () => {
+const [internalGetForceThemeContext, internalSetForceThemeContext] = createContext<ForceThemeParentContext>();
+
+export const getForceThemeContext = (): ForceThemeParentContext | undefined => {
 	try {
-		return internalGetForceThemeParentId();
+		return internalGetForceThemeContext();
 	} catch {
 		return undefined;
 	}
 };
 
-export const setForceThemeParentId = internalSetForceThemeParentId;
+export const setForceThemeContext = internalSetForceThemeContext;

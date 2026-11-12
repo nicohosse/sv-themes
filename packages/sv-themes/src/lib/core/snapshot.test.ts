@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createThemes } from "$lib/index.js";
-import { expectOk } from "$lib/tests/setup.js";
-import { createMockThemeManagerConfig, MOCK_THEME_MANAGER_CONFIG } from "$lib/tests/theme-manager.js";
-import { getSSRAttributes, getSSRTags, normalizeForcedTheme, resolveForcedTheme } from "./server.js";
-import { createThemeManager } from "./theme-manager/create-theme-manager.svelte.js";
+import { createThemes } from "#lib/index.js";
+import { expectOk } from "#lib/tests/setup.js";
+import { createMockThemeManagerConfig, MOCK_THEME_MANAGER_CONFIG } from "#lib/tests/themeManager.js";
+import { getSSRAttributes, getSSRTags, normalizeForcedTheme, resolveForcedTheme } from "./snapshot.js";
+import { createThemeManager } from "./themeManager/createThemeManager.svelte.js";
 
 describe("getSSRAttributes", () => {
 	it("applies class attribute using resolved theme", () => {
@@ -31,7 +31,7 @@ describe("getSSRAttributes", () => {
 
 		const result = getSSRAttributes(themeManager);
 
-		expect(result["data-theme"]).toBe(MOCK_THEME_MANAGER_CONFIG.themes.light.className ?? "light");
+		expect(result["data-theme"]).toBe("light");
 	});
 
 	it("adds forced theme attribute when enabled", async () => {
@@ -165,6 +165,26 @@ describe("getSSRTags", () => {
 			expect(ssrTags.find((tag) => tag.includes("theme-color"))).toContain('content="#fff"');
 		});
 
+		it("adds a favicon link when the resolved theme defines one", () => {
+			const themes = createThemes([{ id: "light", type: "light", favicon: "/light.svg" }]);
+
+			const themeManager = expectOk(createThemeManager({ themes, initialTheme: "light" }));
+
+			const ssrTags = getSSRTags(themeManager);
+
+			expect(ssrTags).toContain('<link rel="icon" href="/light.svg">');
+		});
+
+		it("omits the favicon link when useFavicon is disabled", () => {
+			const themes = createThemes([{ id: "light", type: "light", favicon: "/light.svg" }]);
+
+			const themeManager = expectOk(createThemeManager({ themes, initialTheme: "light", useFavicon: false }));
+
+			const ssrTags = getSSRTags(themeManager);
+
+			expect(ssrTags.find((tag) => tag.includes('rel="icon"'))).toBeUndefined();
+		});
+
 		it("skips meta tag if theme-color isnt hex", () => {
 			const themes = createThemes([{ id: "light", type: "light", color: "var(--missing)" }]);
 
@@ -255,68 +275,82 @@ describe("normalizeForcedTheme", () => {
 });
 
 describe("resolveForcedTheme", () => {
+	function forcedMeta(request: {
+		forcedTheme?: string | null;
+		priority?: number;
+		overrideChildren?: boolean;
+		depth?: number;
+	}) {
+		return `<meta name="sv-themes-force-theme" content="${encodeURIComponent(
+			JSON.stringify({
+				forcedTheme: request.forcedTheme ?? null,
+				priority: request.priority ?? 0,
+				overrideChildren: request.overrideChildren ?? false,
+				depth: request.depth ?? 0,
+			}),
+		)}" />`;
+	}
+
 	it("returns undefined when no meta tags exist", () => {
 		expect(resolveForcedTheme("<html><head></head></html>")).toBeUndefined();
 	});
 
 	it("extracts forcedTheme from single meta tag", () => {
-		const html = `
-			<meta name="sv-themes-force-theme"
-				content="forcedTheme=dark;priority=1;overrideChildren=false"
-			/>
-		`;
-
-		expect(resolveForcedTheme(html)).toBe("dark");
+		expect(resolveForcedTheme(forcedMeta({ forcedTheme: "dark", priority: 1 }))).toBe("dark");
 	});
 
 	it("resolves highest priority meta tag", () => {
-		const html = `
-			<meta name="sv-themes-force-theme"
-				content="forcedTheme=light;priority=1;overrideChildren=false"
-			/>
-			<meta name="sv-themes-force-theme"
-				content="forcedTheme=dark;priority=5;overrideChildren=false"
-			/>
-		`;
+		const html = [
+			forcedMeta({ forcedTheme: "light", priority: 1 }),
+			forcedMeta({ forcedTheme: "dark", priority: 5 }),
+		].join("");
 
 		expect(resolveForcedTheme(html)).toBe("dark");
 	});
 
-	it("stops on overrideChildren=true and locks value", () => {
-		const html = `
-			<meta name="sv-themes-force-theme"
-				content="forcedTheme=light;priority=1;overrideChildren=false"
-			/>
-			<meta name="sv-themes-force-theme"
-				content="forcedTheme=dark;priority=10;overrideChildren=true"
-			/>
-			<meta name="sv-themes-force-theme"
-				content="forcedTheme=blue;priority=100;overrideChildren=false"
-			/>
-		`;
+	it("blocks descendants of a request with overrideChildren", () => {
+		const html = [
+			forcedMeta({ forcedTheme: "dark", priority: 10, overrideChildren: true, depth: 0 }),
+			forcedMeta({ forcedTheme: "light", priority: 100, depth: 1 }),
+		].join("");
+
+		expect(resolveForcedTheme(html)).toBe("dark");
+	});
+
+	it("allows children to override when overrideChildren is false", () => {
+		const html = [
+			forcedMeta({ forcedTheme: "light", priority: 1, depth: 0 }),
+			forcedMeta({ forcedTheme: "dark", priority: 5, depth: 1 }),
+		].join("");
+
+		expect(resolveForcedTheme(html)).toBe("dark");
+	});
+
+	it("does not treat sibling requests as descendants", () => {
+		const html = [
+			forcedMeta({ forcedTheme: "dark", priority: 10, overrideChildren: true, depth: 0 }),
+			forcedMeta({ forcedTheme: "light", priority: 100, depth: 1 }),
+			forcedMeta({ forcedTheme: "dark", priority: 200, depth: 1 }),
+		].join("");
 
 		expect(resolveForcedTheme(html)).toBe("dark");
 	});
 
 	it("handles undefined/null string normalization", () => {
-		const html = `
-			<meta name="sv-themes-force-theme"
-				content="forcedTheme=undefined;priority=1;overrideChildren=false"
-			/>
-		`;
-
-		expect(resolveForcedTheme(html)).toBeUndefined();
+		expect(resolveForcedTheme(forcedMeta({ forcedTheme: null, priority: 1 }))).toBeUndefined();
 	});
 
 	it("handles multiple same-priority tags (last wins)", () => {
-		const html = `
-			<meta name="sv-themes-force-theme"
-				content="forcedTheme=light;priority=2;overrideChildren=false"
-			/>
-			<meta name="sv-themes-force-theme"
-				content="forcedTheme=dark;priority=2;overrideChildren=false"
-			/>
-		`;
+		const html = [
+			forcedMeta({ forcedTheme: "light", priority: 2 }),
+			forcedMeta({ forcedTheme: "dark", priority: 2 }),
+		].join("");
+
+		expect(resolveForcedTheme(html)).toBe("dark");
+	});
+
+	it("supports the legacy content format", () => {
+		const html = `<meta name="sv-themes-force-theme" content="forcedTheme=dark;priority=1;overrideChildren=false" />`;
 
 		expect(resolveForcedTheme(html)).toBe("dark");
 	});

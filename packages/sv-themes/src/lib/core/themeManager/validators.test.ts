@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createThemes, type DEFAULT_THEMES, type ThemeRecord } from "$lib/index.js";
-import { expectOk } from "$lib/tests/setup.js";
+import { createThemes, type DEFAULT_THEMES, type ThemeRecord } from "#lib/index.js";
+import { expectOk } from "#lib/tests/setup.js";
 import {
 	createMockThemeManagerConfig,
 	INVALID_THEME_MANAGER_CONFIG_CASES,
 	MOCK_THEME_MANAGER_CONFIG,
-} from "$lib/tests/theme-manager.js";
+} from "#lib/tests/themeManager.js";
 import { ThemeManagerError } from "./errors.js";
 import { createThemeManager, type ResolvedThemeManagerConfig, resolveThemeManagerConfig } from "./index.js";
 import {

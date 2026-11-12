@@ -1,11 +1,11 @@
 import { flushSync } from "svelte";
 import { describe, expect, it, vi } from "vitest";
-import * as themeManagerContextModule from "$lib/contexts/theme-manager-context.svelte.js";
-import { createThemeManager } from "$lib/core/theme-manager/index.js";
-import { ThemeManagerError } from "$lib/index.js";
-import { expectOk } from "$lib/tests/setup.js";
-import { createMockThemeManagerConfig, MOCK_THEME_MANAGER_CONFIG } from "$lib/tests/theme-manager.js";
-import { themeSelector } from "./theme-selector.svelte.js";
+import * as themeManagerContextModule from "#lib/contexts/themeManagerContext.svelte.js";
+import { createThemeManager } from "#lib/core/themeManager/index.js";
+import { ThemeManagerError } from "#lib/index.js";
+import { expectOk } from "#lib/tests/setup.js";
+import { createMockThemeManagerConfig, MOCK_THEME_MANAGER_CONFIG } from "#lib/tests/themeManager.js";
+import { themeSelector } from "./themeSelector.svelte.js";
 
 describe("themeSelector", () => {
 	it("registers a click event listener and sets initial state", () => {
@@ -170,6 +170,7 @@ describe("themeSelector", () => {
 
 		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
+		vi.spyOn(console, "error").mockImplementation(() => {});
 		vi.spyOn(themeManagerContextModule, "getThemeManager").mockReturnValue(themeManager);
 
 		const onError = vi.fn();
@@ -305,6 +306,72 @@ describe("themeSelector", () => {
 
 			action.destroy?.();
 		});
+
+		cleanup();
+	});
+
+	it("keeps the system and theme buttons mutually exclusive", async () => {
+		const systemNode = document.createElement("button");
+		const lightNode = document.createElement("button");
+		const darkNode = document.createElement("button");
+
+		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+		vi.spyOn(themeManagerContextModule, "getThemeManager").mockReturnValue(themeManager);
+
+		let actions: { destroy?: () => void }[] = [];
+
+		const cleanup = $effect.root(() => {
+			actions = [
+				themeSelector(systemNode, { theme: "system" }),
+				themeSelector(lightNode, { theme: "light" }),
+				themeSelector(darkNode, { theme: "dark" }),
+			];
+		});
+
+		flushSync();
+
+		expect(systemNode.ariaPressed).toBe("false");
+		expect(lightNode.ariaPressed).toBe("true");
+		expect(darkNode.ariaPressed).toBe("false");
+
+		expect(await themeManager.setTheme("system")).toBeOk();
+
+		flushSync();
+
+		expect(systemNode.ariaPressed).toBe("true");
+		expect(lightNode.ariaPressed).toBe("false");
+		expect(darkNode.ariaPressed).toBe("false");
+
+		for (const action of actions) action.destroy?.();
+
+		cleanup();
+	});
+
+	it("sets only the active theme button to pressed when a theme is selected", async () => {
+		const lightNode = document.createElement("button");
+		const darkNode = document.createElement("button");
+
+		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+		vi.spyOn(themeManagerContextModule, "getThemeManager").mockReturnValue(themeManager);
+
+		let actions: { destroy?: () => void }[] = [];
+
+		const cleanup = $effect.root(() => {
+			actions = [themeSelector(lightNode, { theme: "light" }), themeSelector(darkNode, { theme: "dark" })];
+		});
+
+		flushSync();
+
+		expect(await themeManager.setTheme("dark")).toBeOk();
+
+		flushSync();
+
+		expect(lightNode.ariaPressed).toBe("false");
+		expect(darkNode.ariaPressed).toBe("true");
+
+		for (const action of actions) action.destroy?.();
 
 		cleanup();
 	});

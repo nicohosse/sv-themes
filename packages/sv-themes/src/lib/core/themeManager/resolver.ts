@@ -1,7 +1,8 @@
 import { err, ok, type Result } from "neverthrow";
-import { type SystemTheme, ThemeManagerError, type ThemeRecord } from "$lib/index.js";
-import type { ThemeManagerConfig } from "./create-theme-manager.svelte.js";
-import { DEFAULT_STORAGE_HYBRID, type SystemThemes } from "./theme-manager.js";
+import type { ThemeRecord } from "../theme/theme.js";
+import type { ThemeManagerConfig } from "./createThemeManager.svelte.js";
+import { ThemeManagerError } from "./errors.js";
+import { DEFAULT_STORAGE_HYBRID, type SystemTheme, type SystemThemes } from "./themeManager.js";
 
 export type ResolvedSystemThemesConfig<Themes extends ThemeRecord = ThemeRecord> =
 	SystemThemes<Themes> extends infer T
@@ -25,6 +26,7 @@ export type ResolvedThemeManagerConfig<Themes extends ThemeRecord = ThemeRecord>
 			| "isForcedThemeLocked"
 			| "useColorScheme"
 			| "useThemeColor"
+			| "useFavicon"
 			| "enableTabSync"
 			| "attributes"
 			| "enableLogging"
@@ -73,6 +75,7 @@ export function resolveThemeManagerConfig<const Themes extends ThemeRecord>(
 		isForcedThemeLocked: config.isForcedThemeLocked ?? false,
 		useColorScheme: config.useColorScheme ?? true,
 		useThemeColor: config.useThemeColor ?? true,
+		useFavicon: config.useFavicon ?? true,
 		isThemeForcedAttribute: "isThemeForcedAttribute" in config ? config.isThemeForcedAttribute : "data-is-theme-forced",
 		isSystemThemeAttribute: "isSystemThemeAttribute" in config ? config.isSystemThemeAttribute : "data-is-system-theme",
 		storage: "storage" in config ? config.storage : DEFAULT_STORAGE_HYBRID,

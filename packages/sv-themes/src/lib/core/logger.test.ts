@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { expectOk } from "$lib/tests/setup.js";
-import { createMockThemeManagerConfig, MOCK_THEME_MANAGER_CONFIG } from "$lib/tests/theme-manager.js";
+import { expectOk } from "#lib/tests/setup.js";
+import { createMockThemeManagerConfig, MOCK_THEME_MANAGER_CONFIG } from "#lib/tests/themeManager.js";
 import { logError, logInfo } from "./logger.js";
-import { createThemeManager } from "./theme-manager/create-theme-manager.svelte.js";
+import { createThemeManager } from "./themeManager/createThemeManager.svelte.js";
 
 describe("logInfo", () => {
 	it("logs to console.info when logging is enabled in theme manager", () => {

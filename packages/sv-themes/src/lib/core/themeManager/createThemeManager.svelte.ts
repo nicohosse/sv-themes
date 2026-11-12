@@ -1,6 +1,6 @@
 import { err, errAsync, ok, okAsync, type Result, ResultAsync } from "neverthrow";
-import { getThemeManager, setThemeManager } from "$lib/contexts/theme-manager-context.svelte.js";
-import type { ThemeRecord } from "$lib/index.js";
+import { getThemeManager, setThemeManager } from "#lib/contexts/themeManagerContext.svelte.js";
+import type { ThemeRecord } from "../theme/theme.js";
 import { registerThemeManager } from "./dom.svelte.js";
 import { ThemeManagerError } from "./errors.js";
 import type {
@@ -12,7 +12,7 @@ import type {
 	ThemeManagerEvents,
 	ThemeSelectEvent,
 } from "./events.js";
-import { createForceThemeRegistry } from "./force-theme-registry.svelte.js";
+import { createForceThemeRegistry } from "./forceThemeRegistry.svelte.js";
 import { persistTheme } from "./persistence.js";
 import { resolveThemeManagerConfig } from "./resolver.js";
 import {
@@ -21,7 +21,7 @@ import {
 	INTERNAL as THEME_MANAGER_INTERNAL,
 	type ThemeManager,
 	type ThemeUpdateConfig,
-} from "./theme-manager.js";
+} from "./themeManager.js";
 import { validateRequestedTheme, validateThemeManagerConfig } from "./validators.js";
 
 export type SystemThemesConfig<Themes extends ThemeRecord> =
@@ -51,6 +51,7 @@ export type ThemeManagerConfig<Themes extends ThemeRecord = ThemeRecord> = Omit<
 	| "setSelectedTheme"
 	| "useColorScheme"
 	| "useThemeColor"
+	| "useFavicon"
 	| "enableTabSync"
 	| "attributes"
 	| "enableLogging"
@@ -65,6 +66,7 @@ export type ThemeManagerConfig<Themes extends ThemeRecord = ThemeRecord> = Omit<
 			| "isForcedThemeLocked"
 			| "useColorScheme"
 			| "useThemeColor"
+			| "useFavicon"
 			| "enableTabSync"
 			| "attributes"
 			| "enableLogging"
@@ -274,14 +276,21 @@ export function createThemeManager<const Themes extends ThemeRecord>(
 	};
 
 	const setForcedTheme = (theme?: keyof Themes | "system", shouldLock = false) => {
-		if (themeManager.isForcedThemeLocked) return errAsync(ThemeManagerError.forcedThemeLocked);
-		else themeManager.isForcedThemeLocked = shouldLock;
-
-		if (state.forcedTheme === theme) return okAsync();
+		// A locked hierarchy may not be overridden, but it must still be possible to
+		// clear (or re-affirm) the active forced theme when its owner unmounts.
+		if (themeManager.isForcedThemeLocked && theme !== undefined && theme !== state.forcedTheme)
+			return errAsync(ThemeManagerError.forcedThemeLocked);
 
 		const to = theme === undefined ? (themeManager.useSystemTheme ? "system" : themeManager.selectedTheme) : theme;
 
 		const validationResult = validateRequestedTheme(themeManager, to);
+
+		if (state.forcedTheme === theme && !shouldLock) return okAsync();
+
+		if (state.forcedTheme === theme) {
+			state.isForcedThemeLocked = true;
+			return okAsync();
+		}
 
 		return validationResult
 			.asyncAndThen(() =>
@@ -289,6 +298,7 @@ export function createThemeManager<const Themes extends ThemeRecord>(
 					to,
 					() => {
 						state.forcedTheme = theme;
+						state.isForcedThemeLocked = shouldLock;
 						return ok();
 					},
 					false,
@@ -313,8 +323,72 @@ export function createThemeManager<const Themes extends ThemeRecord>(
 		theme: keyof Themes | "system",
 		config: ThemeUpdateConfig = {},
 	): ResultAsync<void, ThemeManagerError> => {
-		if (theme === "system") return setUseSystemTheme(true, config);
-		else return setUseSystemTheme(false, config).andThen(() => setSelectedTheme(theme, config));
+		const { shouldPersist = true, ignoreForcedTheme, shouldEmitTransitionEvents = true } = config;
+
+		if (!ignoreForcedTheme && themeManager.forcedTheme) return errAsync(ThemeManagerError.forcedThemeActive);
+
+		const validationResult = validateRequestedTheme(themeManager, theme);
+
+		// `setTheme` is a single logical transition. Emitting a select event and then
+		// committing both preference fields atomically keeps listeners from observing an
+		// intermediate state (for example, system disabled but the old theme still selected).
+		return validationResult
+			.asyncAndThen(() =>
+				ResultAsync.fromPromise(
+					(async () => {
+						if (themeManager[THEME_MANAGER_INTERNAL].hasListeners("select")) {
+							let cancelled = false;
+
+							const from = themeManager.useSystemTheme ? "system" : themeManager.selectedTheme;
+
+							const selectEvent: ThemeSelectEvent<Themes> = {
+								from,
+								to: theme,
+								preventDefault: () => {
+									cancelled = true;
+								},
+								get defaultPrevented() {
+									return cancelled;
+								},
+							};
+
+							await themeManager[THEME_MANAGER_INTERNAL].emit("select", selectEvent);
+
+							if (cancelled) throw ThemeManagerError.cancelled;
+						}
+					})(),
+					() => ThemeManagerError.cancelled,
+				),
+			)
+			.andThen(() =>
+				transitionTheme(
+					theme,
+					() => {
+						if (theme === "system") state.useSystemTheme = true;
+						else {
+							state.useSystemTheme = false;
+							state.selectedTheme = theme;
+						}
+
+						return ok();
+					},
+					shouldPersist,
+					shouldEmitTransitionEvents,
+				),
+			);
+	};
+
+	const applyPersistedTheme = (theme: string) => {
+		if (theme === "system") {
+			if (resolvedConfig.systemThemes.kind === "enabled") state.useSystemTheme = true;
+
+			return;
+		}
+
+		if (!(theme in resolvedConfig.themes)) return;
+
+		state.useSystemTheme = false;
+		state.selectedTheme = theme as keyof Themes;
 	};
 
 	const setSystemTheme = (systemTheme: SystemTheme) => {
@@ -414,6 +488,7 @@ export function createThemeManager<const Themes extends ThemeRecord>(
 
 		useColorScheme: resolvedConfig.useColorScheme,
 		useThemeColor: resolvedConfig.useThemeColor,
+		useFavicon: resolvedConfig.useFavicon,
 
 		isThemeForcedAttribute: resolvedConfig.isThemeForcedAttribute,
 		isSystemThemeAttribute: resolvedConfig.isSystemThemeAttribute,
@@ -431,6 +506,8 @@ export function createThemeManager<const Themes extends ThemeRecord>(
 			forceThemeRegistry,
 
 			transitionTheme,
+
+			applyPersistedTheme,
 
 			setSystemTheme,
 

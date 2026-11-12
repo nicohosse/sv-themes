@@ -1,6 +1,6 @@
 import { err, ok } from "neverthrow";
 import { describe, expect, it } from "vitest";
-import { createMockThemeManagerConfig, MOCK_THEME_MANAGER_CONFIG } from "$lib/tests/theme-manager.js";
+import { createMockThemeManagerConfig, MOCK_THEME_MANAGER_CONFIG } from "#lib/tests/themeManager.js";
 import { createThemes } from "../theme/theme.js";
 import { ThemeManagerError } from "./errors.js";
 import { resolveSystemThemes, resolveThemeManagerConfig } from "./resolver.js";

@@ -1,8 +1,8 @@
 import { err, ok, type Result } from "neverthrow";
 import { getContext, hasContext, setContext } from "svelte";
-import type { ThemeRecord } from "$lib/core/theme/theme.js";
-import { ThemeManagerError } from "$lib/core/theme-manager/errors.js";
-import type { ThemeManager } from "$lib/core/theme-manager/theme-manager.js";
+import type { ThemeRecord } from "#lib/core/theme/theme.js";
+import { ThemeManagerError } from "#lib/core/themeManager/errors.js";
+import type { ThemeManager } from "#lib/core/themeManager/themeManager.js";
 
 export const THEME_MANAGER_CONTEXT_SYMBOL = Symbol.for("__sv-themes_theme-manager-context__");
 

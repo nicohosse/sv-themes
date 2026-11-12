@@ -1,12 +1,12 @@
 import type { Cookies } from "@sveltejs/kit";
 import { describe, expect, it, vi } from "vitest";
-import { createMockCookies } from "$lib/tests/cookie.js";
-import { expectOk } from "$lib/tests/setup.js";
-import { testEnv } from "$lib/tests/test-environment.js";
-import { createMockThemeManagerConfig, MOCK_THEME_MANAGER_CONFIG } from "$lib/tests/theme-manager.js";
-import { getCookie, setCookie } from "$lib/utils/cookie.js";
-import { createThemeManager } from "./create-theme-manager.svelte.js";
-import { getPersistedTheme, persistTheme } from "./persistence.js";
+import { createMockCookies } from "#lib/tests/cookie.js";
+import { expectOk } from "#lib/tests/setup.js";
+import { testEnv } from "#lib/tests/testEnvironment.js";
+import { createMockThemeManagerConfig, MOCK_THEME_MANAGER_CONFIG } from "#lib/tests/themeManager.js";
+import { getCookie, setCookie } from "#lib/utils/cookie.js";
+import { createThemeManager } from "./createThemeManager.svelte.js";
+import { getPersistedTheme, getPersistedThemeSync, persistTheme } from "./persistence.js";
 
 describe("getPersistedTheme", () => {
 	it("returns undefined when storage is not defined on themeManager", async () => {
@@ -313,6 +313,53 @@ describe("getPersistedTheme", () => {
 			expect(globalThis.localStorage.getItem("theme")).toBeNull();
 		});
 
+		it("prefers cookies over localStorage and sessionStorage regardless of method order", async () => {
+			globalThis.sessionStorage.setItem("theme", "light");
+			globalThis.localStorage.setItem("theme", "dark");
+
+			await setCookie("light", { name: "theme" });
+
+			const themeManager = expectOk(
+				createThemeManager(
+					createMockThemeManagerConfig(
+						{
+							storage: {
+								methods: ["sessionStorage", "localStorage", "cookie"],
+								key: "theme",
+								cookie: { name: "theme" },
+							},
+						},
+						false,
+					),
+				),
+			);
+
+			expect(await getPersistedTheme(themeManager)).toBe("light");
+		});
+
+		it("prefers localStorage over sessionStorage", async () => {
+			globalThis.sessionStorage.setItem("theme", "light");
+			globalThis.localStorage.setItem("theme", "dark");
+
+			const themeManager = expectOk(
+				createThemeManager(
+					createMockThemeManagerConfig(
+						{
+							storage: {
+								methods: ["sessionStorage", "localStorage"],
+								key: "theme",
+								cookie: { name: "theme" },
+							},
+							enableTabSync: true,
+						},
+						false,
+					),
+				),
+			);
+
+			expect(await getPersistedTheme(themeManager)).toBe("dark");
+		});
+
 		it("returns dominant theme without syncing when no storage methods are missing", async () => {
 			globalThis.localStorage.setItem("theme", "dark");
 
@@ -326,6 +373,79 @@ describe("getPersistedTheme", () => {
 			expect(globalThis.localStorage.getItem("theme")).toBe("dark");
 			expect(await getCookie("theme")).toBe("dark");
 		});
+	});
+});
+
+describe("getPersistedThemeSync", () => {
+	it("returns undefined outside the browser", () => {
+		testEnv().browser(false).apply();
+		globalThis.localStorage.setItem("theme", "dark");
+
+		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+		expect(getPersistedThemeSync(themeManager)).toBeUndefined();
+	});
+
+	it("returns undefined when storage is not configured", () => {
+		const themeManager = expectOk(
+			createThemeManager(createMockThemeManagerConfig({ enableTabSync: false, storage: undefined })),
+		);
+
+		expect(getPersistedThemeSync(themeManager)).toBeUndefined();
+	});
+
+	it("returns the highest-priority persisted theme synchronously", async () => {
+		globalThis.sessionStorage.setItem("theme", "light");
+		globalThis.localStorage.setItem("theme", "dark");
+
+		await setCookie("system", { name: "theme" });
+
+		const themeManager = expectOk(
+			createThemeManager(
+				createMockThemeManagerConfig(
+					{
+						storage: {
+							methods: ["sessionStorage", "localStorage", "cookie"],
+							key: "theme",
+							cookie: { name: "theme" },
+						},
+					},
+					false,
+				),
+			),
+		);
+
+		expect(getPersistedThemeSync(themeManager)).toBe("system");
+	});
+
+	it("ignores persisted values that are not known themes", () => {
+		globalThis.localStorage.setItem("theme", "missing");
+
+		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+		expect(getPersistedThemeSync(themeManager)).toBeUndefined();
+	});
+
+	it("reads only the configured cookie name", async () => {
+		await setCookie("dark", { name: "sv-theme" });
+
+		const themeManager = expectOk(
+			createThemeManager(
+				createMockThemeManagerConfig(
+					{
+						enableTabSync: false,
+						storage: {
+							methods: ["cookie"],
+							key: "theme",
+							cookie: { name: "sv-theme" },
+						},
+					},
+					false,
+				),
+			),
+		);
+
+		expect(getPersistedThemeSync(themeManager)).toBe("dark");
 	});
 });
 
@@ -410,6 +530,21 @@ describe("persistTheme", () => {
 		expect(spyConsoleError).toHaveBeenCalledWith(
 			"Tried to save theme 'light' to session storage in a non-browser context. Skipping.",
 		);
+	});
+
+	it("does not attempt a cookie write on the server without a cookie store", async () => {
+		testEnv().browser(false).apply();
+
+		const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+		const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+		await persistTheme(themeManager, "dark");
+
+		expect(consoleErrorSpy).toHaveBeenCalledWith(
+			"Tried to save theme 'dark' to a cookie in a non-browser context without a cookie store. Skipping.",
+		);
+		expect(await getCookie("theme")).toBeUndefined();
 	});
 
 	it("saves theme to cookie when cookie storage is enabled", async () => {

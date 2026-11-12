@@ -1,10 +1,10 @@
 import { BROWSER } from "esm-env";
 import { untrack } from "svelte";
-import type { ThemeRecord } from "$lib/index.js";
-import { resolveCssColor } from "$lib/utils/resolve-css-color.js";
-import { logError } from "../index.js";
-import { getPersistedTheme, persistTheme } from "./persistence.js";
-import { INTERNAL as THEME_MANAGER_INTERNAL, type ThemeManager } from "./theme-manager.js";
+import type { ThemeRecord } from "#lib/core/theme/theme.js";
+import { resolveCssColor } from "#lib/utils/resolveCssColor.js";
+import { logError } from "../logger.js";
+import { getPersistedThemeSync, persistTheme } from "./persistence.js";
+import { INTERNAL as THEME_MANAGER_INTERNAL, type ThemeManager } from "./themeManager.js";
 
 export function updateMetaTags<const Themes extends ThemeRecord>(themeManager: ThemeManager<Themes>) {
 	if (!BROWSER) return;
@@ -31,6 +31,18 @@ export function updateMetaTags<const Themes extends ThemeRecord>(themeManager: T
 		colorSchemeMetaElement.content = colorSchemeContent;
 	}
 
+	if (themeManager.useFavicon && resolvedTheme.favicon) {
+		let faviconLink = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
+
+		if (!faviconLink) {
+			faviconLink = document.createElement("link");
+			faviconLink.rel = "icon";
+			document.head.appendChild(faviconLink);
+		}
+
+		faviconLink.href = resolvedTheme.favicon;
+	}
+
 	if (!themeManager.useThemeColor) return;
 
 	let themeColorMetaElement = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
@@ -47,10 +59,10 @@ export function updateMetaTags<const Themes extends ThemeRecord>(themeManager: T
 	if (!isColorHex) {
 		const computedColor = resolveCssColor(resolvedTheme.color);
 
-		if (computedColor) resolvedColor = computedColor;
+		if (computedColor.isOk()) resolvedColor = computedColor.value;
 		else {
 			logError(
-				`The color of theme '${resolvedTheme.id}' couldn't be resolved. Removing theme-color meta element.`,
+				`The color of theme '${resolvedTheme.id}' couldn't be resolved. ${computedColor.error.message} Removing theme-color meta element.`,
 				themeManager,
 			);
 
@@ -145,6 +157,10 @@ export function registerStorageListener<const Themes extends ThemeRecord>(themeM
 		const isThemeKey = event.key === themeManager.storage?.key;
 		if (!isThemeKey) return;
 
+		// `removeItem`/`clear` fire with a null key or value. There is no theme to apply,
+		// so ignore the event instead of attempting to parse `null`.
+		if (event.key === null || event.newValue === null) return;
+
 		const isLocalStorage = Object.is(event.storageArea, globalThis.localStorage);
 		const isSessionStorage = Object.is(event.storageArea, globalThis.sessionStorage);
 
@@ -171,13 +187,15 @@ export function registerStorageListener<const Themes extends ThemeRecord>(themeM
 }
 
 export function registerThemeManager<const Themes extends ThemeRecord>(themeManager: ThemeManager<Themes>) {
+	// Read persistence synchronously during initialization so the client state matches the
+	// theme already applied by the head bootloader. This avoids a flash of the wrong theme
+	// and prevents a late async read from overwriting a user's selection.
+	const persistedTheme = getPersistedThemeSync(themeManager);
+	if (persistedTheme) themeManager[THEME_MANAGER_INTERNAL].applyPersistedTheme(persistedTheme);
+
 	$effect.pre(() => {
 		const removeStorageListener = registerStorageListener(themeManager);
 		const removeMediaListener = registerMediaListener(themeManager);
-
-		getPersistedTheme(themeManager).then((persistedTheme) => {
-			if (persistedTheme) themeManager.setTheme(persistedTheme, { shouldPersist: false });
-		});
 
 		return () => {
 			removeStorageListener();

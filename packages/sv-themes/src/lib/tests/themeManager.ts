@@ -1,4 +1,4 @@
-import { createThemes, DEFAULT_THEMES, type ThemeManagerConfig, type ThemeManagerError } from "$lib/index.js";
+import { createThemes, DEFAULT_THEMES, type ThemeManagerConfig, type ThemeManagerError } from "#lib/index.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);

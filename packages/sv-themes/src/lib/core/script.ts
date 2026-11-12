@@ -1,12 +1,13 @@
-import type {
-	StorageMethod,
-	StorageOptions,
-	SystemTheme,
-	ThemeAttribute,
-	ThemeManager,
-	ThemeRecord,
-} from "$lib/index.js";
-import { STORAGE_METHOD_PRIORITY, type SystemThemes } from "./theme-manager/index.js";
+import type { ThemeRecord } from "./theme/theme.js";
+import {
+	STORAGE_METHOD_PRIORITY,
+	type StorageMethod,
+	type StorageOptions,
+	type SystemTheme,
+	type SystemThemes,
+	type ThemeAttribute,
+	type ThemeManager,
+} from "./themeManager/themeManager.js";
 
 export type ThemeScriptArguments<Themes extends ThemeRecord = ThemeRecord> = Pick<
 	ThemeManager<Themes>,
@@ -22,7 +23,7 @@ export type ThemeScriptArguments<Themes extends ThemeRecord = ThemeRecord> = Pic
 	| "storage"
 	| "attributes"
 > &
-	Partial<Pick<ThemeManager<Themes>, "useColorScheme" | "useThemeColor">>;
+	Partial<Pick<ThemeManager<Themes>, "useColorScheme" | "useThemeColor" | "useFavicon">>;
 
 export function themeScript<const Themes extends ThemeRecord>(
 	themes: Themes,
@@ -39,33 +40,48 @@ export function themeScript<const Themes extends ThemeRecord>(
 	isThemeForcedAttribute?: string,
 	isSystemThemeAttribute?: string,
 	storage?: StorageOptions,
+	useFavicon?: boolean,
 ) {
 	const rootElement = document.documentElement;
+
+	const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+	const readCookie = (name: string): string | undefined => {
+		const encodedName = encodeURIComponent(name);
+		const match = document.cookie.match(new RegExp(`(^|;\\s*)${escapeRegExp(encodedName)}=([^;]*)`));
+
+		if (!match) return undefined;
+
+		try {
+			return decodeURIComponent(match[2]);
+		} catch {
+			return undefined;
+		}
+	};
 
 	const getPersistedTheme = (): string | undefined => {
 		if (!storage) return undefined;
 
-		const persistedThemes: Map<StorageMethod, string> = new Map();
-
-		const sortedStorageMethods = storage?.methods?.toSorted(
+		const sortedStorageMethods = storage.methods?.toSorted(
 			(a, b) => storageMethodPriority[b] - storageMethodPriority[a],
 		);
 
 		let dominantTheme: string | undefined;
 
 		for (const storageMethod of sortedStorageMethods) {
-			let storedTheme: string | null = null;
+			let storedTheme: string | null | undefined;
 
-			if (storageMethod === "localStorage") storedTheme = localStorage.getItem(storage.key);
-			else if (storageMethod === "sessionStorage") storedTheme = sessionStorage.getItem(storage.key);
-			else if (storageMethod === "cookie") {
-				const match = document.cookie.match(new RegExp(`(^|;\\s*)${encodeURIComponent(storage.key)}=([^;]*)`));
-				storedTheme = match && decodeURIComponent(match[2]);
+			try {
+				if (storageMethod === "localStorage") storedTheme = localStorage.getItem(storage.key);
+				else if (storageMethod === "sessionStorage") storedTheme = sessionStorage.getItem(storage.key);
+				else if (storageMethod === "cookie") storedTheme = readCookie(storage.cookie.name);
+			} catch {
+				continue;
 			}
 
 			if (!storedTheme) continue;
 
-			persistedThemes.set(storageMethod, storedTheme);
+			// Methods are visited in descending priority, so the first value wins.
 			dominantTheme ??= storedTheme;
 		}
 
@@ -175,15 +191,21 @@ export function themeScript<const Themes extends ThemeRecord>(
 
 	const persistedTheme = getPersistedTheme();
 
+	// A persisted `"system"` value means the user wants to follow the OS, while a
+	// persisted concrete theme disables OS tracking. Applying that state here (and in
+	// the manager's synchronous initialization) keeps SSR, the head bootloader and the
+	// hydrated client in agreement.
+	const effectiveUseSystemTheme = persistedTheme === "system" ? true : persistedTheme ? false : useSystemTheme;
+	const effectiveSelectedTheme = persistedTheme && persistedTheme !== "system" ? persistedTheme : selectedTheme;
+
 	const resolvedUseSystemTheme =
-		systemThemes.kind === "enabled" &&
-		((!forcedTheme && useSystemTheme) || (forcedTheme ?? persistedTheme) === "system");
+		systemThemes.kind === "enabled" && ((!forcedTheme && effectiveUseSystemTheme) || forcedTheme === "system");
 
 	const resolvedTheme =
 		themes[
 			(resolvedUseSystemTheme && systemThemes.kind === "enabled"
 				? systemThemes.mappings[getSystemTheme()]
-				: ((forcedTheme === "system" ? undefined : forcedTheme) ?? persistedTheme ?? selectedTheme)) ?? initialTheme
+				: ((forcedTheme === "system" ? undefined : forcedTheme) ?? effectiveSelectedTheme)) ?? initialTheme
 		];
 
 	if (isThemeForcedAttribute)
@@ -191,11 +213,23 @@ export function themeScript<const Themes extends ThemeRecord>(
 		else rootElement.removeAttribute(isThemeForcedAttribute);
 
 	if (isSystemThemeAttribute)
-		if (useSystemTheme) rootElement.setAttribute(isSystemThemeAttribute, "true");
+		if (resolvedUseSystemTheme) rootElement.setAttribute(isSystemThemeAttribute, "true");
 		else rootElement.removeAttribute(isSystemThemeAttribute);
 
 	createOrUpdateColorSchemeMetaTag();
 	createOrUpdateThemeColorMetaTag();
+
+	if (useFavicon && resolvedTheme?.favicon) {
+		let faviconLink = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
+
+		if (!faviconLink) {
+			faviconLink = document.createElement("link");
+			faviconLink.rel = "icon";
+			document.head.appendChild(faviconLink);
+		}
+
+		faviconLink.href = resolvedTheme.favicon;
+	}
 
 	if (!resolvedTheme) {
 		if (document.currentScript) document.currentScript.remove();
@@ -233,6 +267,7 @@ export function getThemeScript<const Themes extends ThemeRecord>(config: Readonl
 		config.isThemeForcedAttribute,
 		config.isSystemThemeAttribute,
 		config.storage,
+		config.useFavicon,
 	]
 		.map((argument) => (argument === undefined ? "undefined" : safeSerializeArgument(argument)))
 		.join(",");
@@ -243,9 +278,13 @@ export function getThemeScript<const Themes extends ThemeRecord>(config: Readonl
 export function safeSerializeArgument(argument: unknown): string {
 	const json = JSON.stringify(argument);
 
+	if (json === undefined) return "undefined";
+
+	// Escaping `<` is sufficient to stop `</script>`, `<!--` and any other HTML-ish
+	// sequence from terminating the inline script. It is valid inside JSON strings
+	// and preserves the original runtime value exactly.
 	return json
-		.replace(/<\/script\s*>/gi, "<\\/script>")
-		.replace(/<\s*\/\s*script\s*>/gi, "<\\/script>")
-		.replace(/<!--/g, "<\\!--")
-		.replace(/<\/([a-zA-Z][a-zA-Z0-9-]*)>/g, "<\\$1>");
+		.replace(/</g, "\\u003c")
+		.replace(/\u2028/g, "\\u2028")
+		.replace(/\u2029/g, "\\u2029");
 }

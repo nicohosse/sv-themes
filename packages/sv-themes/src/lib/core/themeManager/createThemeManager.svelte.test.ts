@@ -2,19 +2,19 @@ import { ok } from "neverthrow";
 import * as svelte from "svelte";
 import { flushSync } from "svelte";
 import { describe, expect, it, vi } from "vitest";
-import { THEME_MANAGER_CONTEXT_SYMBOL } from "$lib/contexts/theme-manager-context.svelte.js";
-import { createThemes } from "$lib/index.js";
-import { expectOk } from "$lib/tests/setup.js";
+import { THEME_MANAGER_CONTEXT_SYMBOL } from "#lib/contexts/themeManagerContext.svelte.js";
+import { createThemes } from "#lib/index.js";
+import { expectOk } from "#lib/tests/setup.js";
 import {
 	createMockThemeManagerConfig,
 	INVALID_THEME_MANAGER_CONFIG_CASES,
 	MOCK_THEME_MANAGER_CONFIG,
-} from "$lib/tests/theme-manager.js";
-import { createAppThemeManager, createThemeManager } from "./create-theme-manager.svelte.js";
+} from "#lib/tests/themeManager.js";
+import { createAppThemeManager, createThemeManager } from "./createThemeManager.svelte.js";
 import * as domModule from "./dom.svelte.js";
 import { ThemeManagerError } from "./errors.js";
 import * as persistenceModule from "./persistence.js";
-import { INTERNAL as THEME_MANAGER_INTERNAL } from "./theme-manager.js";
+import { INTERNAL as THEME_MANAGER_INTERNAL } from "./themeManager.js";
 
 describe("createThemeManager", () => {
 	it("returns Ok with valid config", () => {
@@ -381,6 +381,33 @@ describe("createThemeManager", () => {
 			expect(result).toBeErr("SystemThemesDisabled");
 		});
 
+		it("allows clearing a locked forced theme when its owner unmounts", async () => {
+			const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+			expect(await themeManager.setForcedTheme("dark", true)).toBeOk();
+			expect(themeManager.isForcedThemeLocked).toBe(true);
+
+			const result = await themeManager.setForcedTheme(undefined);
+
+			flushSync();
+
+			expect(result).toBeOk();
+			expect(themeManager.forcedTheme).toBeUndefined();
+			expect(themeManager.isForcedThemeLocked).toBe(false);
+			expect(themeManager.resolvedTheme).toBe("light");
+		});
+
+		it("still rejects a different forced theme while locked", async () => {
+			const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+			expect(await themeManager.setForcedTheme("dark", true)).toBeOk();
+
+			const result = await themeManager.setForcedTheme("light");
+
+			expect(result).toBeErr(ThemeManagerError.forcedThemeLocked);
+			expect(themeManager.forcedTheme).toBe("dark");
+		});
+
 		it("clears forcedTheme and emits unforced event when target is undefined", async () => {
 			const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
@@ -446,6 +473,63 @@ describe("createThemeManager", () => {
 			expect(result).toBeOk();
 			expect(themeManager.useSystemTheme).toBe(false);
 			expect(themeManager.selectedTheme).toBe("dark");
+		});
+
+		it("emits exactly one select and one transition per call", async () => {
+			const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+			const selectHandler = vi.fn();
+			const beforeChangeHandler = vi.fn();
+			const afterChangeHandler = vi.fn();
+
+			themeManager.on("select", selectHandler);
+			themeManager.on("beforeChange", beforeChangeHandler);
+			themeManager.on("afterChange", afterChangeHandler);
+
+			expect(await themeManager.setTheme("dark")).toBeOk();
+
+			flushSync();
+
+			expect(selectHandler).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ from: "light", to: "dark" }));
+			expect(beforeChangeHandler).toHaveBeenCalledExactlyOnceWith(
+				expect.objectContaining({ from: "light", to: "dark" }),
+			);
+			expect(afterChangeHandler).toHaveBeenCalledExactlyOnceWith(
+				expect.objectContaining({ from: "light", to: "dark" }),
+			);
+		});
+
+		it("applies a persisted theme without emitting events or persisting", async () => {
+			const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+			const selectHandler = vi.fn();
+			const afterChangeHandler = vi.fn();
+			const persistSpy = vi.spyOn(persistenceModule, "persistTheme");
+
+			themeManager.on("select", selectHandler);
+			themeManager.on("afterChange", afterChangeHandler);
+
+			themeManager[THEME_MANAGER_INTERNAL].applyPersistedTheme("dark");
+
+			flushSync();
+
+			expect(themeManager.selectedTheme).toBe("dark");
+			expect(themeManager.useSystemTheme).toBe(false);
+			expect(themeManager.resolvedTheme).toBe("dark");
+			expect(selectHandler).not.toHaveBeenCalled();
+			expect(afterChangeHandler).not.toHaveBeenCalled();
+			expect(persistSpy).not.toHaveBeenCalled();
+		});
+
+		it("applies a persisted system preference", async () => {
+			const themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
+
+			themeManager[THEME_MANAGER_INTERNAL].applyPersistedTheme("system");
+
+			flushSync();
+
+			expect(themeManager.useSystemTheme).toBe(true);
+			expect(themeManager.resolvedUseSystemTheme).toBe(true);
 		});
 	});
 

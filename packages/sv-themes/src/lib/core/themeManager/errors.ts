@@ -1,5 +1,5 @@
-import type { BaseError } from "../index.js";
-import type { SystemTheme } from "./theme-manager.js";
+import type { BaseError } from "../errors.js";
+import type { SystemTheme } from "./themeManager.js";
 
 export type ThemeManagerError = BaseError &
 	(

@@ -61,15 +61,8 @@ export async function setCookie(value: string, options: CookieOptions, cookies?:
 	}
 }
 
-export async function getCookie(name: string, cookies?: Cookies): Promise<string | undefined> {
-	if (cookies) return cookies.get(name);
-
+function readDocumentCookie(name: string): string | undefined {
 	if (!BROWSER) return undefined;
-
-	if ("cookieStore" in globalThis && globalThis.cookieStore) {
-		const cookie = await globalThis.cookieStore.get(name);
-		return cookie?.value;
-	}
 
 	const documentCookies = document.cookie
 		.split(";")
@@ -84,8 +77,31 @@ export async function getCookie(name: string, cookies?: Cookies): Promise<string
 		const key = cookie.slice(0, separatorIndex);
 		const value = cookie.slice(separatorIndex + 1);
 
-		if (decodeURIComponent(key) === name) return decodeURIComponent(value);
+		try {
+			if (decodeURIComponent(key) === name) return decodeURIComponent(value);
+		} catch {}
 	}
 
 	return undefined;
+}
+
+/**
+ * Synchronous cookie read used during client initialization. Reading `document.cookie`
+ * has no async boundary, unlike the `cookieStore` API.
+ */
+export function getCookieSync(name: string): string | undefined {
+	return readDocumentCookie(name);
+}
+
+export async function getCookie(name: string, cookies?: Cookies): Promise<string | undefined> {
+	if (cookies) return cookies.get(name);
+
+	if (!BROWSER) return undefined;
+
+	if ("cookieStore" in globalThis && globalThis.cookieStore) {
+		const cookie = await globalThis.cookieStore.get(name);
+		return cookie?.value;
+	}
+
+	return readDocumentCookie(name);
 }

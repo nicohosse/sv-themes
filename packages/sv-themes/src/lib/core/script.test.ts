@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { createThemes, DEFAULT_THEMES } from "$lib/index.js";
-import { testEnv } from "$lib/tests/test-environment.js";
-import { setCookie } from "$lib/utils/cookie.js";
+import { createThemes, DEFAULT_THEMES } from "#lib/index.js";
+import { testEnv } from "#lib/tests/testEnvironment.js";
+import { setCookie } from "#lib/utils/cookie.js";
 import { getThemeScript, safeSerializeArgument, type ThemeScriptArguments, themeScript } from "./script.js";
-import { STORAGE_METHOD_PRIORITY, type SystemThemes } from "./theme-manager/index.js";
+import { STORAGE_METHOD_PRIORITY, type SystemThemes } from "./themeManager/index.js";
 
 describe("themeScript", () => {
 	const themes = DEFAULT_THEMES;
@@ -478,6 +478,109 @@ describe("themeScript", () => {
 		expect(document.documentElement.hasAttribute(attribute)).toBe(false);
 	});
 
+	it("uses the configured cookie name instead of the storage key", () => {
+		// biome-ignore lint/suspicious/noDocumentCookie: exercises the library's cookie storage fallback
+		document.cookie = "sv-theme=dark";
+
+		themeScript(
+			themes,
+			themeIds,
+			systemThemes,
+			false,
+			"light",
+			"light",
+			["class"],
+			STORAGE_METHOD_PRIORITY,
+			undefined,
+			false,
+			false,
+			undefined,
+			undefined,
+			{ methods: ["cookie"], key: "theme", cookie: { name: "sv-theme" } },
+		);
+
+		expect(document.documentElement.classList.contains("dark")).toBe(true);
+	});
+
+	it("resolves persisted system preference during boot", () => {
+		localStorage.setItem("theme", "system");
+
+		const systemThemes: SystemThemes<typeof themes> = {
+			kind: "enabled",
+			mappings: { light: "light", dark: "dark" },
+		};
+
+		testEnv().systemTheme("dark").apply();
+
+		themeScript(
+			themes,
+			themeIds,
+			systemThemes,
+			false,
+			"light",
+			"light",
+			["class"],
+			STORAGE_METHOD_PRIORITY,
+			undefined,
+			false,
+			false,
+			undefined,
+			"data-is-system-theme",
+			{ methods: ["localStorage"], key: "theme", cookie: { name: "theme" } },
+		);
+
+		expect(document.documentElement.classList.contains("dark")).toBe(true);
+		expect(document.documentElement.getAttribute("data-is-system-theme")).toBe("true");
+	});
+
+	it("updates the favicon when the resolved theme defines one", () => {
+		const faviconThemes = createThemes([{ id: "light", type: "light", favicon: "/light.svg" }]);
+
+		themeScript(
+			faviconThemes,
+			Object.keys(faviconThemes),
+			systemThemes,
+			false,
+			"light",
+			"light",
+			["class"],
+			STORAGE_METHOD_PRIORITY,
+			undefined,
+			false,
+			false,
+			undefined,
+			undefined,
+			undefined,
+			true,
+		);
+
+		expect(document.querySelector('link[rel~="icon"]')?.getAttribute("href")).toBe("/light.svg");
+	});
+
+	it("does not update the favicon when useFavicon is disabled", () => {
+		const faviconThemes = createThemes([{ id: "light", type: "light", favicon: "/light.svg" }]);
+
+		themeScript(
+			faviconThemes,
+			Object.keys(faviconThemes),
+			systemThemes,
+			false,
+			"light",
+			"light",
+			["class"],
+			STORAGE_METHOD_PRIORITY,
+			undefined,
+			false,
+			false,
+			undefined,
+			undefined,
+			undefined,
+			false,
+		);
+
+		expect(document.querySelector('link[rel~="icon"]')).toBeNull();
+	});
+
 	it("removes the current script tag if it exists", () => {
 		const script = document.createElement("script");
 		document.body.appendChild(script);
@@ -544,7 +647,7 @@ describe("getThemeScript", () => {
 		const script = getThemeScript(config);
 		const parts = script.split(",");
 
-		expect(parts[parts.length - 6]).toBe("undefined");
+		expect(parts[parts.length - 7]).toBe("undefined");
 	});
 });
 
@@ -554,22 +657,26 @@ describe("safeSerializeArgument", () => {
 		expect(safeSerializeArgument(argument)).toBe('{"key":"value","num":123}');
 	});
 
-	it("escapes script tags to prevent injection in HTML blocks", () => {
-		expect(safeSerializeArgument("</script>")).toContain("<\\/script>");
-		expect(safeSerializeArgument("</script  >")).toContain("<\\/script>");
-		expect(safeSerializeArgument("<  / script >")).toContain("<\\/script>");
+	it("serializes undefined as the undefined literal", () => {
+		expect(safeSerializeArgument(undefined)).toBe("undefined");
 	});
 
-	it("escapes HTML comments", () => {
-		const argument = "<!-- secret -->";
-		expect(safeSerializeArgument(argument)).toContain("<\\!--");
+	it("escapes every less-than character to prevent script injection", () => {
+		expect(safeSerializeArgument("</script>")).toBe('"\\u003c/script>"');
+		expect(safeSerializeArgument("<!-- secret -->")).toBe('"\\u003c!-- secret -->"');
+		expect(safeSerializeArgument("</div></sv-themes>")).toBe('"\\u003c/div>\\u003c/sv-themes>"');
 	});
 
-	it("escapes other closing tags", () => {
-		const argument = "</div></sv-themes>";
+	it("neutralizes malformed closing tags used for XSS", () => {
+		const argument = "</script foo><img src=x onerror=alert(1)>";
 		const result = safeSerializeArgument(argument);
 
-		expect(result).toContain("<\\div");
-		expect(result).toContain("<\\sv-themes");
+		expect(result).not.toContain("</script");
+		expect(result).toContain("\\u003c/script foo>");
+		expect(result).toContain("\\u003cimg");
+	});
+
+	it("escapes line separator characters", () => {
+		expect(safeSerializeArgument("\u2028\u2029")).toBe('"\\u2028\\u2029"');
 	});
 });

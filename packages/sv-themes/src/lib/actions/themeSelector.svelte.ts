@@ -1,7 +1,9 @@
 import type { ActionReturn } from "svelte/action";
-import { getThemeManager } from "$lib/contexts/theme-manager-context.svelte.js";
-import { logError } from "$lib/core/index.js";
-import type { ThemeManager, ThemeManagerError, ThemeRecord } from "$lib/index.js";
+import { getThemeManager } from "#lib/contexts/themeManagerContext.svelte.js";
+import { logError } from "#lib/core/logger.js";
+import type { ThemeRecord } from "#lib/core/theme/theme.js";
+import type { ThemeManagerError } from "#lib/core/themeManager/errors.js";
+import type { ThemeManager } from "#lib/core/themeManager/themeManager.js";
 
 type ThemeSelectorParams<Themes extends ThemeRecord> = {
 	themeManager?: ThemeManager<Themes>;
@@ -12,7 +14,7 @@ type ThemeSelectorParams<Themes extends ThemeRecord> = {
 /**
  * A Svelte action applied to HTML button elements to handle theme switching on click.
  * Automatically synchronizes the button's `aria-pressed` accessibility attribute
- * based on whether the button's target theme matches the active theme state.
+ * based on whether the button's target theme matches the active theme preference.
  *
  * @param node - The HTML button element the action is applied to.
  * @param params - Configuration parameters containing an optional theme manager, the target theme ID, and error callback.
@@ -22,20 +24,12 @@ export function themeSelector<Themes extends ThemeRecord>(
 	node: HTMLButtonElement,
 	params: ThemeSelectorParams<Themes>,
 ): ActionReturn<ThemeSelectorParams<Themes>> {
-	let { themeManager: themeManagerProp, theme: themeId, onError } = params;
-
-	let themeManager = themeManagerProp ?? getThemeManager<Themes>();
-
-	const getResolvedThemeId = () => {
-		return themeId === "system" && themeManager.systemThemes.kind === "enabled" && themeManager.systemThemes.systemTheme
-			? themeManager.systemThemes.mappings[themeManager.systemThemes.systemTheme]
-			: themeId;
-	};
-
-	let resolvedThemeId = getResolvedThemeId();
+	let themeId = $state<keyof Themes | "system">(params.theme);
+	let themeManager = $state.raw<ThemeManager<Themes>>(params.themeManager ?? getThemeManager<Themes>());
+	let onError = $state.raw(params.onError);
 
 	const onClick = async () => {
-		const result = await themeManager.setTheme(themeId.toString());
+		const result = await themeManager.setTheme(themeId.toString() as keyof Themes | "system");
 
 		if (result.isOk()) return;
 
@@ -47,21 +41,19 @@ export function themeSelector<Themes extends ThemeRecord>(
 	node.addEventListener("click", onClick);
 
 	$effect(() => {
-		node.ariaPressed = (
-			(themeId === "system" && themeManager.resolvedUseSystemTheme) ||
-			themeManager.selectedTheme === resolvedThemeId
-		).toString();
+		const isPressed =
+			themeId === "system"
+				? themeManager.useSystemTheme
+				: !themeManager.useSystemTheme && themeManager.selectedTheme === themeId;
+
+		node.ariaPressed = isPressed.toString();
 	});
 
 	return {
 		update(newParams) {
 			themeId = newParams.theme;
 			onError = newParams.onError;
-
-			themeManagerProp = newParams.themeManager;
-			themeManager = themeManagerProp ?? getThemeManager();
-
-			resolvedThemeId = getResolvedThemeId();
+			themeManager = newParams.themeManager ?? getThemeManager();
 		},
 
 		destroy() {

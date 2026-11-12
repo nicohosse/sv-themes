@@ -1,4 +1,4 @@
-import type { ThemeManagerError } from "$lib/index.js";
+import type { ThemeManagerError } from "./themeManager/errors.js";
 
 export type BaseError = {
 	message: string;

@@ -1,5 +1,5 @@
-import type { ThemeRecord } from "$lib/index.js";
-import type { SystemTheme } from "./theme-manager.js";
+import type { ThemeRecord } from "../theme/theme.js";
+import type { SystemTheme } from "./themeManager.js";
 
 export interface ThemeChangeEvent<Themes extends ThemeRecord> {
 	readonly from: keyof Themes | "system";

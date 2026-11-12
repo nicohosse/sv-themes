@@ -1,7 +1,8 @@
 import { err, ok, type Result } from "neverthrow";
-import type { SystemTheme, ThemeRecord } from "$lib/index.js";
+import type { ThemeRecord } from "../theme/theme.js";
 import { ThemeManagerError } from "./errors.js";
 import type { ResolvedThemeManagerConfig } from "./resolver.js";
+import type { SystemTheme } from "./themeManager.js";
 
 export function validateRequestedTheme<const Themes extends ThemeRecord>(
 	config: ResolvedThemeManagerConfig<Themes>,

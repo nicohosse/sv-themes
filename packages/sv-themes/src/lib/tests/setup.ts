@@ -2,9 +2,9 @@ import "@testing-library/jest-dom/vitest";
 import { format } from "@vitest/pretty-format";
 import type { Result } from "neverthrow";
 import { afterEach, expect, vi } from "vitest";
-import type { LibError } from "$lib/core/index.js";
+import type { LibError } from "#lib/core/index.js";
 import { StorageMock } from "./storage.js";
-import { resetTestEnv } from "./test-environment.js";
+import { resetTestEnv } from "./testEnvironment.js";
 
 export function expectOk<T, E>(result: Result<T, E>): T {
 	expect(result).toBeOk();

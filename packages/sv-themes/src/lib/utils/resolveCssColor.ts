@@ -1,6 +1,11 @@
 import { BROWSER } from "esm-env";
+import { err, ok, type Result } from "neverthrow";
 
 let resolverElement: HTMLDivElement | undefined;
+
+export interface ResolveCssColorError {
+	message: string;
+}
 
 export function getResolverElement(): HTMLDivElement | undefined {
 	if (!BROWSER) return;
@@ -16,18 +21,31 @@ export function getResolverElement(): HTMLDivElement | undefined {
 }
 
 const VAR_REGEX = /^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/;
+const MAX_VAR_DEPTH = 16;
 
-interface ResolveCssColorOptions {
+export interface ResolveCssColorOptions {
 	allowFallback?: boolean;
 }
 
-export function resolveCssColor(value: string, options?: ResolveCssColorOptions): string | undefined {
+export function resolveCssColor(value: string, options?: ResolveCssColorOptions): Result<string, ResolveCssColorError> {
+	return resolveCssColorWithDepth(value, options, 0);
+}
+
+function resolveCssColorWithDepth(
+	value: string,
+	options: ResolveCssColorOptions | undefined,
+	depth: number,
+): Result<string, ResolveCssColorError> {
 	const resolverElement = getResolverElement();
-	if (!resolverElement) return;
+
+	if (!resolverElement) return err({ message: "No DOM available for color resolution." });
+
+	if (depth > MAX_VAR_DEPTH)
+		return err({ message: `CSS variable resolution exceeded the maximum depth of ${MAX_VAR_DEPTH}.` });
 
 	const { allowFallback = true } = options ?? {};
 
-	const varMatch = VAR_REGEX.exec(value);
+	const varMatch = VAR_REGEX.exec(value.trim());
 
 	if (!varMatch) return normalizeColorToHex(value);
 
@@ -36,33 +54,55 @@ export function resolveCssColor(value: string, options?: ResolveCssColorOptions)
 	const variableValue = getComputedStyle(resolverElement).getPropertyValue(variableName).trim();
 
 	if (!variableValue) {
-		if (allowFallback && fallback) return resolveCssColor(fallback, options);
-		return undefined;
+		if (allowFallback && fallback) return resolveCssColorWithDepth(fallback, options, depth + 1);
+
+		return err({ message: `CSS variable '${variableName}' is not defined and has no fallback.` });
 	}
 
-	return resolveCssColor(variableValue, options);
+	return resolveCssColorWithDepth(variableValue, options, depth + 1);
 }
 
-export function rgbToHex(r: number, g: number, b: number): string {
+export type RgbaTuple = [r: number, g: number, b: number, a: number];
+
+export function rgbToHex(r: number, g: number, b: number, a = 1): string {
 	const clampedR = Math.max(0, Math.min(255, Math.round(r * 255)));
 	const clampedG = Math.max(0, Math.min(255, Math.round(g * 255)));
 	const clampedB = Math.max(0, Math.min(255, Math.round(b * 255)));
 
-	return `#${[clampedR, clampedG, clampedB].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+	const channels = [clampedR, clampedG, clampedB];
+
+	// Preserve alpha by emitting an 8-digit hex value when the color is translucent.
+	if (a < 1) {
+		const clampedA = Math.max(0, Math.min(255, Math.round(a * 255)));
+		channels.push(clampedA);
+	}
+
+	return `#${channels.map((value) => value.toString(16).padStart(2, "0")).join("")}`;
 }
 
-const OKLCH_REGEX = /oklch\s*\(\s*([0-9.]+%?)\s+([0-9.]+)\s+([0-9.]+)(?:deg)?(?:\s*\/\s*[0-9.%]+)?\s*\)/i;
+const NUMBER = "[-+]?(?:\\d*\\.\\d+|\\d+)(?:e[-+]?\\d+)?";
+const OKLCH_REGEX = new RegExp(
+	`oklch\\s*\\(\\s*(${NUMBER}%?)\\s+(${NUMBER})\\s+(${NUMBER})(?:deg)?(?:\\s*\\/\\s*(${NUMBER}%?))?\\s*\\)`,
+	"i",
+);
 
-export function oklchToRgb(oklch: string): [r: number, g: number, b: number] | undefined {
+function parseAlpha(value?: string): number {
+	if (!value) return 1;
+
+	const parsed = value.includes("%") ? parseFloat(value) / 100 : parseFloat(value);
+
+	return Number.isFinite(parsed) ? Math.max(0, Math.min(1, parsed)) : 1;
+}
+
+export function oklchToRgb(oklch: string): RgbaTuple | undefined {
 	const match = OKLCH_REGEX.exec(oklch);
 
 	if (!match) return undefined;
 
-	let l = parseFloat(match[1]);
+	const l = match[1].includes("%") ? parseFloat(match[1]) / 100 : parseFloat(match[1]);
 	const c = parseFloat(match[2]);
 	const h = parseFloat(match[3]);
-
-	if (oklch.includes("%")) l = l / 100;
+	const alpha = parseAlpha(match[4]);
 
 	const hRad = (h * Math.PI) / 180;
 	const a = c * Math.cos(hRad);
@@ -87,14 +127,14 @@ export function oklchToRgb(oklch: string): [r: number, g: number, b: number] | u
 	g = linearToSrgb(g);
 	b_rgb = linearToSrgb(b_rgb);
 
-	return [r, g, b_rgb];
+	return [r, g, b_rgb, alpha];
 }
 
-const RGB_REGEX = /rgba?\(\s*([0-9.]+%?)\s*[\s,]\s*([0-9.]+%?)\s*[\s,]\s*([0-9.]+%?)/i;
+const RGB_REGEX = /rgba?\(\s*([0-9.]+%?)\s*[\s,]\s*([0-9.]+%?)\s*[\s,]\s*([0-9.]+%?)(?:\s*[,/]\s*([0-9.]+%?))?\s*\)/i;
 
-export function parseRgb(rgb: string): [r: number, g: number, b: number] {
+export function parseRgb(rgb: string): RgbaTuple | undefined {
 	const matches = RGB_REGEX.exec(rgb);
-	if (!matches) throw new Error(`Unsupported color: ${rgb}`);
+	if (!matches) return undefined;
 
 	const rStr = matches[1];
 	const gStr = matches[2];
@@ -104,20 +144,33 @@ export function parseRgb(rgb: string): [r: number, g: number, b: number] {
 	const g = gStr.includes("%") ? parseFloat(gStr) / 100 : Number(gStr) / 255;
 	const b = bStr.includes("%") ? parseFloat(bStr) / 100 : Number(bStr) / 255;
 
-	return [r, g, b];
+	return [r, g, b, parseAlpha(matches[4])];
 }
 
-export function normalizeColorToHex(color: string): string {
+export function normalizeColorToHex(color: string): Result<string, ResolveCssColorError> {
 	const resolverElement = getResolverElement();
-	if (!resolverElement) throw new Error("No DOM available for color resolution.");
+	if (!resolverElement) return err({ message: "No DOM available for color resolution." });
 
-	resolverElement.style.color = color;
+	try {
+		resolverElement.style.color = "";
+		resolverElement.style.color = color;
 
-	const computedColor = getComputedStyle(resolverElement).color;
-	const rgbColor = oklchToRgb(computedColor) ?? parseRgb(computedColor);
-	const normalizedColor = rgbToHex(rgbColor[0], rgbColor[1], rgbColor[2]);
+		// Browsers silently ignore unsupported color syntax, leaving the inline style
+		// empty. Checking it here turns that case into a normal Result error instead of
+		// accidentally resolving to a stale or default color.
+		if (!resolverElement.style.color && color.trim().toLowerCase() !== "transparent")
+			return err({ message: `Unsupported CSS color '${color}'.` });
 
-	resolverElement.style.color = "";
+		const computedColor = getComputedStyle(resolverElement).color;
 
-	return normalizedColor;
+		if (!computedColor) return err({ message: `Unable to resolve CSS color '${color}'.` });
+
+		const rgbColor = oklchToRgb(computedColor) ?? parseRgb(computedColor);
+
+		if (!rgbColor) return err({ message: `Unsupported CSS color '${color}' (resolved to '${computedColor}').` });
+
+		return ok(rgbToHex(rgbColor[0], rgbColor[1], rgbColor[2], rgbColor[3]));
+	} finally {
+		resolverElement.style.color = "";
+	}
 }

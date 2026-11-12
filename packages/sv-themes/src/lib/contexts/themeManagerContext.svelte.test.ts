@@ -1,10 +1,10 @@
 import * as svelteModule from "svelte";
 import { describe, expect, it, vi } from "vitest";
-import { createThemeManager } from "$lib/core/theme-manager/create-theme-manager.svelte.js";
-import { ThemeManagerError } from "$lib/core/theme-manager/errors.js";
-import { expectOk } from "$lib/tests/setup.js";
-import { MOCK_THEME_MANAGER_CONFIG } from "$lib/tests/theme-manager.js";
-import { getThemeManager, isThemeManagerRegistered, setThemeManager } from "./theme-manager-context.svelte.js";
+import { createThemeManager } from "#lib/core/themeManager/createThemeManager.svelte.js";
+import { ThemeManagerError } from "#lib/core/themeManager/errors.js";
+import { expectOk } from "#lib/tests/setup.js";
+import { MOCK_THEME_MANAGER_CONFIG } from "#lib/tests/themeManager.js";
+import { getThemeManager, isThemeManagerRegistered, setThemeManager } from "./themeManagerContext.svelte.js";
 
 describe("isThemeManagerRegistered", () => {
 	it("returns true if theme manager is registered in context", () => {
