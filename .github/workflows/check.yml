@@ -31,3 +31,6 @@ jobs:
 
       - name: Run Tests
         run: bun run test
+
+      - name: Build Packages and Demo
+        run: bun run build
