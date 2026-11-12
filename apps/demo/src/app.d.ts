@@ -1,3 +1,5 @@
+import type { ThemeManagerSnapshot } from "sv-themes";
+
 // https://svelte.dev/docs/kit/types#app.d.ts
 
 declare global {
@@ -5,11 +7,10 @@ declare global {
 		// interface Error {}
 		interface Locals {
 			svThemesScriptNonce?: string;
+			svThemes?: ThemeManagerSnapshot;
 		}
 		// interface PageData {}
 		// interface PageState {}
 		// interface Platform {}
 	}
 }
-
-export {};

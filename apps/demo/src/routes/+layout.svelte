@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { registerThemeManager } from "$lib/theme-manager.svelte";
+	import { registerThemeManager } from "#lib/themeManager.svelte.js";
 
 	let { children } = $props();
 

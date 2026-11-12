@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { ForceTheme, themeSelector } from "sv-themes";
-	import { themeManager } from "$lib/theme-manager.svelte";
+	import { themeManager } from "#lib/themeManager.svelte.js";
 
 	let forcedTheme = $state<string | undefined>();
 </script>
@@ -20,7 +20,7 @@
 	<button
 		type="button"
 		use:themeSelector={{
-			theme: themeManager.resolvedUseSystemTheme ? themeManager.selectedTheme : "system",
+			theme: "system",
 		}}
 	>
 		System
@@ -40,7 +40,7 @@
 	<button
 		type="button"
 		onclick={() => {
-			forcedTheme = !themeManager.resolvedUseSystemTheme ? "system" : undefined;
+			forcedTheme = forcedTheme === "system" ? undefined : "system";
 		}}
 	>
 		System

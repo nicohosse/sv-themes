@@ -1,7 +1,7 @@
-import type { Handle } from "@sveltejs/kit";
+import type { Handle } from "@sveltejs/kit/hooks";
 import { sequence } from "@sveltejs/kit/hooks";
 import { createThemeHandle } from "sv-themes/kit";
-import { themeManager } from "$lib/theme-manager.svelte";
+import { createRequestThemeManager } from "#lib/themeManager.svelte.js";
 
 const nonceHandle: Handle = async ({ event, resolve }) => {
 	const nonce = Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64");
@@ -14,6 +14,6 @@ const nonceHandle: Handle = async ({ event, resolve }) => {
 	});
 };
 
-const themeHandle = createThemeHandle(themeManager);
+const themeHandle = createThemeHandle(() => createRequestThemeManager());
 
 export const handle = sequence(nonceHandle, themeHandle);
