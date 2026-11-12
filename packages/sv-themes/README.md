@@ -6,15 +6,17 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Coverage Status](https://img.shields.io/badge/Coverage-95%25-green.svg)](https://github.com/nicohosse/sv-themes)
 
-A type-safe theme management library designed for **Svelte 5** and **SvelteKit**. Rather than basic class toggling, `sv-themes` coordinates states across the SvelteKit server lifecycle and Svelte 5 client-side components to resolve common theme challenges like handling system preferences, storage fallbacks, cross-tab syncing, and scoped theme overrides without hydration mismatches or layout flickers.
+A type-safe theme management library designed for **Svelte 5** and **SvelteKit 3**. Rather than basic class toggling, `sv-themes` coordinates states across the SvelteKit server lifecycle and Svelte 5 client-side components to resolve common theme challenges like handling system preferences, storage fallbacks, cross-tab syncing, and scoped theme overrides without hydration mismatches or layout flickers.
 
 ## Features
 
-- **SSR-Safe:** Prevents initial light/dark flashes (FOUC) by synchronizing theme attributes with the server and injecting an inline head bootloader.
+- **SSR-Safe:** Resolves each request into an isolated snapshot, preventing persisted themes from leaking between concurrent requests. An inline head bootloader prevents initial light/dark flashes (FOUC).
 - **Svelte 5 Runes:** Built natively with Svelte 5 runes.
-- **Scoped Theme Overrides:** Declare forced themes in nested routes with priority matching, child locks, and automated unmount cleanup.
+- **SPA & SSR Friendly:** Works in SvelteKit with the provided handle, or in client-only Svelte apps by inlining the exported boot script.
+- **Scoped Theme Overrides:** Declare forced themes in nested routes with depth-aware priority matching, child locks, and automated unmount cleanup.
 - **Tab Synchronization:** Listens to global storage events to instantly align multiple open browser tabs.
-- **Robust Persistence:** Coordinates fallback strategies across cookies, `localStorage`, and `sessionStorage`.
+- **Robust Persistence:** Coordinates fallback strategies across cookies, `localStorage`, and `sessionStorage`, with synchronous initialization reads.
+- **Favicons & Colors:** Updates `<meta name="theme-color">` and per-theme favicons, preserving alpha channel colors.
 - **Comprehensive Testing:** Over 95% test coverage, covering all error paths and edge cases.
 
 ---
@@ -51,9 +53,15 @@ Before initializing the manager, define your themes using the `createThemes` hel
 import { createThemes, type Theme } from "sv-themes";
 
 export const APP_THEMES = createThemes([
-	{ id: "light", type: "light", color: "#fff" },
-	{ id: "dark", type: "dark", color: "#000" },
-	{ id: "nature", type: "light", className: "theme-nature", color: "var(--nature, green)" }
+	{ id: "light", type: "light", color: "#fff", favicon: "/favicon-light.svg" },
+	{ id: "dark", type: "dark", color: "#000", favicon: "/favicon-dark.svg" },
+	{
+		id: "nature",
+		type: "light",
+		className: "theme-nature",
+		color: "var(--nature, green)",
+		favicon: "/favicon-nature.svg"
+	}
 ]);
 ```
 
@@ -64,7 +72,24 @@ export const APP_THEMES = createThemes([
 > **Class Names:** If you don't provide a `className` it will default to the theme id.
 
 > **💡 Tip:**
-> **Flexible Color Values:** The `color` property supports standard CSS names (e.g., `green`), HEX codes (e.g., `#fff`), and CSS custom properties (variables) with optional fallbacks (e.g., `var(--nature, green)`).
+> **Flexible Color Values:** The `color` property supports standard CSS names (e.g., `green`), HEX codes (e.g., `#fff`), `rgb()`/`rgba()`, `oklch()`, and CSS custom properties (variables) with optional fallbacks (e.g., `var(--nature, green)`). Resolved colors keep their alpha channel and are written as 8-digit hex (e.g., `#ff000080`).
+
+> **💡 Tip:**
+> **Per-Theme Favicons:** Set `favicon` on a theme to swap the document favicon while that theme is active. Provide a URL or data URI. Disable this behavior with `useFavicon: false`.
+
+> **💡 Tip:**
+> **Styling With Tailwind or Plain CSS:** The library does not ship component styles. Apply your own styles using the generated `class` or `data-theme` attribute, for example `@apply` utilities or `[data-theme="dark"]` selectors:
+> ```css
+> @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+>
+> .card {
+> 	@apply bg-white text-black;
+> }
+>
+> [data-theme="dark"] .card {
+> 	@apply bg-black text-white;
+> }
+> ```
 
 > **💡 Tip:**
 > **Automatic `<meta name="color-scheme">` Resolution:** If `useColorScheme` is enabled, the library automatically manages the `<meta name="color-scheme">` element. Its content resolves to `"light dark"`, `"dark light"`, `"light"`, or `"dark"` depending on the types of your registered themes and the type of the *first* theme in your config. This prevents unstyled UI flashes (such as scrollbars) instantly on load.
@@ -72,11 +97,18 @@ export const APP_THEMES = createThemes([
 ### Types
 
 ```typescript
+export type ThemeType = "light" | "dark";
+
 export interface Theme {
 	id: string;
 	className?: string;
-	type: "light" | "dark";
+	type: ThemeType;
 	color?: string;
+	/**
+	 * Optional favicon URL (or data URI) applied while this theme is active.
+	 * When omitted, the existing favicon is left untouched.
+	 */
+	favicon?: string;
 }
 
 export type ThemeRecord<Keys extends string = string> = Record<Keys, Readonly<Theme>>;
@@ -92,7 +124,10 @@ export type ThemeRecord<Keys extends string = string> = Record<Keys, Readonly<Th
 > **📝 Note:**
 > **Looking for an example?** You can find a fully configured SvelteKit implementation in the [apps/demo](https://github.com/nicohosse/sv-themes/tree/main/apps/demo) directory of the repository.
 
-### 1. Create Theme Manager (`src/lib/theme-manager.svelte.ts`)
+> **📝 Note:**
+> **SvelteKit 3 imports:** SvelteKit 3 replaces the `$lib` alias with Node subpath imports. Declare `#lib` in your `package.json` (`"#lib": "./src/lib/index.js"`, `"#lib/*": "./src/lib/*"`) and include explicit extensions in imports, for example `#lib/themeManager.svelte.js`. All examples below follow that convention.
+
+### 1. Create Theme Manager (`src/lib/themeManager.svelte.ts`)
 Set up your canonical theme configurations and instantiate the manager.
 
 ```typescript
@@ -115,26 +150,39 @@ export const { themeManager, registerThemeManager } = createAppThemeManager({
 ```
 
 ### 2. Server Middleware (`src/hooks.server.ts`)
-Intercept SvelteKit’s SSR lifecycle to inject resolved state directly into the HTML markup.
+Intercept SvelteKit's SSR lifecycle to inject resolved state directly into the HTML markup.
 
 ```typescript
 import { createThemeHandle } from "sv-themes/kit";
-import { themeManager } from "$lib/theme-manager.svelte"; // Your shared manager instance
+import { themeManager } from "#lib/themeManager.svelte.js"; // Your shared manager instance
 
 export const handle = createThemeHandle(themeManager);
 ```
 
+`createThemeHandle` never mutates the manager during SSR. It resolves persistence and forced themes into a request-scoped snapshot, exposed as `event.locals.svThemes`. This makes a shared manager safe across concurrent requests. For maximum isolation, you can also pass a factory that returns a fresh manager per request:
+
+```typescript
+import { createThemeHandle } from "sv-themes/kit";
+import { createRequestThemeManager } from "#lib/themeManager.svelte.js";
+
+export const handle = createThemeHandle(() => createRequestThemeManager());
+```
+
 > **💡 Tip:**
 > **CSP Nonce Support:** If your application enforces a Content Security Policy (CSP), you can provide a script nonce to the inline head bootloader in two ways:
-> 1. Set `event.locals.svThemesScriptNonce` in SvelteKit"s request cycle.
+> 1. Set `event.locals.svThemesScriptNonce` in SvelteKit's request cycle.
 > 2. Pass it directly as the second parameter: `createThemeHandle(themeManager, cspNonce)`.
-> 
+>
 > To support the `event.locals` approach with TypeScript, extend SvelteKit's global interface in your `src/app.d.ts`:
 > ```typescript
+> import type { ThemeManagerSnapshot } from "sv-themes";
+>
 > declare global {
 > 	namespace App {
 > 		interface Locals {
 > 			svThemesScriptNonce?: string;
+> 			/** The request-scoped snapshot created by `createThemeHandle`. */
+> 			svThemes?: ThemeManagerSnapshot;
 > 		}
 > 	}
 > }
@@ -145,7 +193,7 @@ Mount the manager to handle client-side hydration, media listeners, and tab sync
 
 ```svelte
 <script lang="ts">
-	import { registerThemeManager } from "$lib/theme-manager.svelte";
+	import { registerThemeManager } from "#lib/themeManager.svelte.js";
 	
 	let { children } = $props();
 
@@ -161,7 +209,7 @@ Update your Svelte state directly.
 
 ```svelte
 <script lang="ts">
-	import { themeManager } from "$lib/theme-manager.svelte";
+	import { themeManager } from "#lib/themeManager.svelte.js";
 </script>
 
 <button onclick={() => themeManager.setTheme("light")}>Light</button>
@@ -178,11 +226,11 @@ Quickly bind elements to theme events with built-in accessibility (ARIA) attribu
 ```svelte
 <script lang="ts">
 	import { themeSelector } from "sv-themes";
-	import { themeManager } from "$lib/theme-manager.svelte";
+	import { themeManager } from "#lib/themeManager.svelte.js";
 </script>
 
 <button use:themeSelector={{ theme: "dark" }}>
-	Light
+	Dark
 </button>
 
 <button use:themeSelector={{ themeManager /* For type-safe themes */, theme: "dark" }}>
@@ -193,6 +241,51 @@ Quickly bind elements to theme events with built-in accessibility (ARIA) attribu
 	System
 </button>
 ```
+
+### 6. Client-Only / SPA Mode
+
+`sv-themes` does not require SvelteKit. In a client-only Svelte app, skip `createThemeHandle` and register the manager in your root component as shown above. Persistence is read synchronously during registration, so the reactive state matches the already-applied theme.
+
+To apply the persisted theme before the first paint, inline the boot script into `index.html` at build time. The `sv-themes/spa` entry is DOM-free and safe to import from a Vite config or build script:
+
+```typescript
+// vite.config.ts
+import { defineConfig } from "vite";
+import { DEFAULT_STORAGE_HYBRID, DEFAULT_THEMES, getThemeScript } from "sv-themes/spa";
+
+const bootScript = getThemeScript({
+	themes: DEFAULT_THEMES,
+	themeIds: Object.keys(DEFAULT_THEMES),
+	// Use `{ kind: "enabled", mappings: { light: "light", dark: "dark" } }` to follow the OS.
+	systemThemes: { kind: "disabled" },
+	useSystemTheme: false,
+	initialTheme: "light",
+	selectedTheme: "light",
+	attributes: ["class", "data-theme"],
+	storage: DEFAULT_STORAGE_HYBRID,
+	useColorScheme: true,
+	useThemeColor: true,
+	useFavicon: true,
+});
+
+export default defineConfig({
+	plugins: [
+		{
+			name: "sv-themes-boot",
+			transformIndexHtml: () => [
+				{
+					tag: "script",
+					attrs: { "data-sv-themes": "" },
+					children: bootScript,
+					injectTo: "head-prepend",
+				},
+			],
+		},
+	],
+});
+```
+
+The generated script is self-contained, escapes HTML-significant characters, and removes itself after running. If your CSP policy disallows inline scripts, add the same nonce/hash to this tag as you would for the SvelteKit handle.
 
 ---
 
@@ -217,7 +310,8 @@ The object returned by the `createThemeManager` factory. Properties marked with 
 | `isForcedThemeLocked` | `boolean` | **Rune** (Getter/Setter) | Flag indicating if a layout has locked the forced state against deeper nested overrides. |
 | `forcedTheme` | `keyof Themes \| "system" \| undefined` | **Rune** (Getter) | The current temporary forced theme ID, if set. |
 | `useColorScheme` | `boolean` | Readonly | If active, synchronizes the CSS `color-scheme` rule on the root element. It also automatically manages the `<meta name="color-scheme">` HTML element, dynamically resolving its content to `'light dark'`, `'dark light'`, `'light'`, or `'dark'` based on the types and order of your registered themes. |
-| `useThemeColor` | `boolean` | Readonly | If active, dynamically updates `<meta name="theme-color">` using theme colors. |
+| `useThemeColor` | `boolean` | Readonly | If active, dynamically updates `<meta name="theme-color">` using theme colors. Alpha is preserved as 8-digit hex. |
+| `useFavicon` | `boolean` | Readonly | If active, swaps the document favicon when the resolved theme defines `favicon`. |
 | `isThemeForcedAttribute` | `string \| undefined` | Readonly | Attribute set on `<html>` when a forced theme is active. |
 | `isSystemThemeAttribute` | `string \| undefined` | Readonly | Attribute set on `<html>` when system preference is active. |
 | `storage` | `StorageOptions \| undefined` | Readonly | Persistence configuration detailing storage methods, keys, and cookie configurations. |
@@ -283,7 +377,7 @@ This is useful for strictly typing component props, function arguments, or state
 
 ```typescript
 import type { ThemesOf } from "sv-themes";
-import { themeManager } from "$lib/theme-manager.svelte";
+import { themeManager } from "#lib/themeManager.svelte.js";
 
 // 1. Extract the union of allowed theme IDs (e.g., "light" | "dark" | "nature")
 export type AppTheme = ThemesOf<typeof themeManager>;
@@ -332,11 +426,12 @@ export const { themeManager, getThemeManager, registerThemeManager } = createApp
 | `themes` | `Themes` | *Required* | The record of registered theme objects of type `ThemesRecord`. |
 | `initialTheme` | `keyof Themes` | *Required* | The fallback/default theme ID to fall back on during initialization. |
 | `systemThemes` | `SystemThemesConfig<Themes> \| undefined` | `{ kind: "disabled" }` | Setup indicating if system themes are `"disabled"` or `"enabled"`. The `mappings` field is a `Partial<Record<SystemTheme, keyof Themes>>` and automatically resolves to the first registered light and dark themes in your `themes` record if omitted. |
-| `useSystemTheme` | `boolean \| undefined` | `true` | Tracks whether the user preference is set to follow the OS. |
+| `useSystemTheme` | `boolean \| undefined` | `false` | Tracks whether the user preference is set to follow the OS. Requires `systemThemes.kind` to be `"enabled"`. |
 | `forcedTheme` | `keyof Themes \| "system" \| undefined` | `undefined` | The initial forced theme value, if any. |
 | `isForcedThemeLocked` | `boolean \| undefined` | `false` | Initial locked state of forced themes. |
 | `useColorScheme` | `boolean \| undefined` | `true` | If active, synchronizes the CSS `color-scheme` rule on the root element. It also automatically manages the `<meta name="color-scheme">` HTML element, dynamically resolving its content to `'light dark'`, `'dark light'`, `'light'`, or `'dark'` based on the types and order of your registered themes. |
-| `useThemeColor` | `boolean \| undefined` | `true` | Dynamically updates `<meta name="theme-color">` using theme colors. |
+| `useThemeColor` | `boolean \| undefined` | `true` | Dynamically updates `<meta name="theme-color">` using theme colors. Alpha is preserved as 8-digit hex. |
+| `useFavicon` | `boolean \| undefined` | `true` | Swaps the document favicon when the resolved theme defines a `favicon`. |
 | `isThemeForcedAttribute` | `string \| undefined` | `"data-is-theme-forced"` | Attribute name set on `<html>` when a forced theme is active. |
 | `isSystemThemeAttribute` | `string \| undefined` | `"data-is-system-theme"` | Attribute name set on `<html>` when system theme is active. |
 | `storage` | `StorageOptions \| undefined` | See below | Configuration details for storage syncing and persistence. |
@@ -407,14 +502,16 @@ Forced themes can be set for individual pages or layouts. Layout overrides autom
 | `priority` | `number` | `0` | Higher priorities override lower priorities. |
 | `overrideChildren` | `boolean` | `false` | If true, blocks downstream child components from changing the theme. |
 
+Forced themes are resolved as a tree. Nested `<ForceTheme>` components inherit their parent, and a parent with `overrideChildren` blocks every descendant request. Among unblocked requests, the highest `priority` wins; ties are resolved in favor of the request rendered later in document order. This logic is identical on the server (parsed from rendered meta tags) and on the client (the force-theme registry), so SSR and hydration always agree.
+
 > **📝 Note:**
-> Support for individual component scoped overrides is planned for a future version. As of right now, forced themes apply to the entire page.
+> A forced theme applies globally while its owning component is mounted, even though it is declared inside a component tree. Use nested `ForceTheme` components with `overrideChildren` when you need a subtree to remain pinned to a specific theme.
 
 ---
 
 ## 🔬 Lifecycle Events
 
-`sv-themes` exposes type-safe events for integration, allowing you to run animations, track analytics, or cancel transitions entirely:
+`sv-themes` exposes type-safe events for integration, allowing you to run animations, track analytics, or cancel transitions entirely. All event payload types are exported from the package root.
 
 ```typescript
 const unsubscribe = themeManager.on("beforeChange", async (event) => {
