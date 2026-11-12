@@ -9,5 +9,7 @@ Add SvelteKit 3 support along with SSR isolation, SPA bootstrapping, favicons, a
 - Add the DOM-free `sv-themes/spa` entry point for inlining the boot script in client-only Svelte apps.
 - Add `ThemeType`, per-theme `favicon` support through `useFavicon`, and alpha-preserving CSS color resolution for theme colors.
 - Persistence reads happen synchronously during initialization, removing the initial theme delay.
+- Rename the `ForceTheme` component to `ThemeScope`. Scoped overrides keep nested parent/child locks, priority resolution, unmount cleanup, and SSR/client parity.
+- Derive `ThemeManagerSnapshot` from `ThemeManager` with `Pick`, so shared state properties are no longer duplicated.
 - Adopt SvelteKit 3 conventions: `#lib` subpath imports, configuration in `vite.config.ts`, `$app/tsconfig`, and `@sveltejs/kit/hooks` types.
 - Rename internal modules and directories to camelCase.

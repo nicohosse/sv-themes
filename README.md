@@ -479,20 +479,20 @@ If the `storage` configuration is omitted, it defaults to:
 
 ## 🔒 Scoped Theme Overrides
 
-Forced themes can be set for individual pages or layouts. Layout overrides automatically propagate to all nested children.
+Use `ThemeScope` to force a theme for a page, layout, or component subtree. Scoped overrides propagate to all nested children and are cleaned up automatically when the scope unmounts.
 
 ```svelte
 <script lang="ts">
-	import { ForceTheme } from "sv-themes";
+	import { ThemeScope } from "sv-themes";
 </script>
 
-<ForceTheme forcedTheme="dark" priority={0} overrideChildren={false}>
+<ThemeScope forcedTheme="dark" priority={0} overrideChildren={false}>
 	<!-- Children -->
-</ForceTheme>
+</ThemeScope>
 
 <!-- OR -->
 
-<ForceTheme forcedTheme="light" priority={0} overrideChildren={false} />
+<ThemeScope forcedTheme="light" priority={0} overrideChildren={false} />
 <p>Uses light theme</p>
 ```
 
@@ -502,10 +502,10 @@ Forced themes can be set for individual pages or layouts. Layout overrides autom
 | `priority` | `number` | `0` | Higher priorities override lower priorities. |
 | `overrideChildren` | `boolean` | `false` | If true, blocks downstream child components from changing the theme. |
 
-Forced themes are resolved as a tree. Nested `<ForceTheme>` components inherit their parent, and a parent with `overrideChildren` blocks every descendant request. Among unblocked requests, the highest `priority` wins; ties are resolved in favor of the request rendered later in document order. This logic is identical on the server (parsed from rendered meta tags) and on the client (the force-theme registry), so SSR and hydration always agree.
+`ThemeScope` keeps a runtime registry of mounted scopes. Nested scopes inherit their parent, and a parent with `overrideChildren` blocks every descendant request. Among unblocked requests, the highest `priority` wins; ties are resolved in favor of the scope declared later in document order. On the server the same tree is reconstructed from the rendered meta tags, so SSR and hydration agree.
 
 > **📝 Note:**
-> A forced theme applies globally while its owning component is mounted, even though it is declared inside a component tree. Use nested `ForceTheme` components with `overrideChildren` when you need a subtree to remain pinned to a specific theme.
+> A scoped theme applies globally while its owning component is mounted, even though it is declared inside a component tree. Use nested `ThemeScope` components with `overrideChildren` when you need a subtree to remain pinned to a specific theme.
 
 ---
 

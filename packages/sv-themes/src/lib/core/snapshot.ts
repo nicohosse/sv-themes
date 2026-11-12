@@ -1,11 +1,5 @@
 import type { ThemeRecord } from "./theme/theme.js";
-import type {
-	StorageOptions,
-	SystemTheme,
-	SystemThemes,
-	ThemeAttribute,
-	ThemeManager,
-} from "./themeManager/themeManager.js";
+import type { SystemTheme, ThemeManager } from "./themeManager/themeManager.js";
 
 export const HTML_TAG_REGEX = /<html([^>]*)>/i;
 export const HEAD_CLOSE_REGEX = /<\/head\s*>/i;
@@ -17,32 +11,41 @@ export const FORCE_THEME_META_REGEX = /<meta\b[^>]*\bname=["']sv-themes-force-th
 const CONTENT_ATTRIBUTE_REGEX = /\bcontent=["']([^"']*)["']/i;
 
 /**
+ * Manager properties that are serialized into a request-scoped snapshot.
+ *
+ * Methods, runtime-only flags, and internal state are intentionally excluded.
+ */
+export type ThemeManagerSnapshotKeys =
+	| "themes"
+	| "themeIds"
+	| "systemThemes"
+	| "useSystemTheme"
+	| "resolvedUseSystemTheme"
+	| "hasLightTheme"
+	| "hasDarkTheme"
+	| "initialTheme"
+	| "resolvedTheme"
+	| "selectedTheme"
+	| "forcedTheme"
+	| "useColorScheme"
+	| "useThemeColor"
+	| "useFavicon"
+	| "isThemeForcedAttribute"
+	| "isSystemThemeAttribute"
+	| "storage"
+	| "attributes";
+
+/**
  * A request-scoped, immutable view of a theme manager.
  *
  * The SvelteKit handle resolves persistence and forced themes into this snapshot
  * instead of mutating the (possibly module-global) manager. This is what makes SSR
  * safe across concurrent requests.
+ *
+ * Shared state is derived from `ThemeManager` so the two types cannot drift apart.
  */
-export interface ThemeManagerSnapshot<Themes extends ThemeRecord = ThemeRecord> {
-	readonly themes: Themes;
-	readonly themeIds: (keyof Themes)[];
-	readonly systemThemes: SystemThemes<Themes>;
-	readonly useSystemTheme: boolean;
-	readonly resolvedUseSystemTheme: boolean;
-	readonly hasLightTheme: boolean;
-	readonly hasDarkTheme: boolean;
-	readonly initialTheme: keyof Themes;
-	readonly resolvedTheme: keyof Themes;
-	readonly selectedTheme: keyof Themes;
-	readonly forcedTheme?: keyof Themes | "system";
-	readonly useColorScheme: boolean;
-	readonly useThemeColor: boolean;
-	readonly useFavicon: boolean;
-	readonly isThemeForcedAttribute?: string;
-	readonly isSystemThemeAttribute?: string;
-	readonly storage?: StorageOptions;
-	readonly attributes: ThemeAttribute[];
-}
+export interface ThemeManagerSnapshot<Themes extends ThemeRecord = ThemeRecord>
+	extends Pick<ThemeManager<Themes>, ThemeManagerSnapshotKeys> {}
 
 export interface ThemeManagerSnapshotOptions<Themes extends ThemeRecord> {
 	persistedTheme?: string;

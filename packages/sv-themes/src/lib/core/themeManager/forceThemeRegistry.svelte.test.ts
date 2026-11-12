@@ -1,5 +1,6 @@
 import { flushSync } from "svelte";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { resolveForcedTheme } from "#lib/core/snapshot.js";
 import {
 	createForceThemeRegistry,
 	type ForceThemeRegistry,
@@ -601,5 +602,147 @@ describe("unregister", () => {
 
 		const finalResult = forceThemeRegistry.dominantForcedTheme;
 		expect(finalResult).toBeUndefined();
+	});
+
+	it("removes only the matching request", () => {
+		const lightId = Symbol();
+		const darkId = Symbol();
+
+		forceThemeRegistry.register({
+			id: lightId,
+			forcedTheme: "light",
+			priority: 0,
+			overrideChildren: false,
+		});
+
+		forceThemeRegistry.register({
+			id: darkId,
+			forcedTheme: "dark",
+			priority: 1,
+			overrideChildren: false,
+		});
+
+		flushSync();
+
+		expect(forceThemeRegistry.dominantForcedTheme).toBe("dark");
+
+		forceThemeRegistry.unregister(darkId);
+
+		expect(forceThemeRegistry.requests).toHaveLength(1);
+		expect(forceThemeRegistry.dominantForcedTheme).toBe("light");
+	});
+});
+
+interface ScopeRequest {
+	forcedTheme?: string;
+	priority: number;
+	overrideChildren: boolean;
+	depth: number;
+}
+
+function resolveClientSide(requests: ScopeRequest[]) {
+	const registry = createForceThemeRegistry();
+	const stack: { id: symbol; depth: number }[] = [];
+	const now = vi.spyOn(Date, "now");
+	let timestamp = 0;
+
+	now.mockImplementation(() => ++timestamp);
+
+	for (const request of requests) {
+		while (stack.length > 0 && stack[stack.length - 1].depth >= request.depth) stack.pop();
+
+		const id = Symbol();
+
+		registry.register({
+			id,
+			parentId: stack[stack.length - 1]?.id,
+			forcedTheme: request.forcedTheme,
+			priority: request.priority,
+			overrideChildren: request.overrideChildren,
+		});
+
+		stack.push({ id, depth: request.depth });
+	}
+
+	flushSync();
+
+	const result = registry.dominantForcedTheme;
+
+	now.mockRestore();
+
+	return result;
+}
+
+function resolveServerSide(requests: ScopeRequest[]) {
+	const html = requests
+		.map(
+			(request) =>
+				`<meta name="sv-themes-force-theme" content="${encodeURIComponent(
+					JSON.stringify({
+						forcedTheme: request.forcedTheme ?? null,
+						priority: request.priority,
+						overrideChildren: request.overrideChildren,
+						depth: request.depth,
+					}),
+				)}" />`,
+		)
+		.join("");
+
+	return resolveForcedTheme(html);
+}
+
+describe("SSR and client scope resolution parity", () => {
+	const scenarios: { name: string; requests: ScopeRequest[]; expected: string | undefined }[] = [
+		{
+			name: "single request",
+			requests: [{ forcedTheme: "dark", priority: 0, overrideChildren: false, depth: 0 }],
+			expected: "dark",
+		},
+		{
+			name: "highest priority wins among siblings",
+			requests: [
+				{ forcedTheme: "light", priority: 1, overrideChildren: false, depth: 0 },
+				{ forcedTheme: "dark", priority: 5, overrideChildren: false, depth: 0 },
+			],
+			expected: "dark",
+		},
+		{
+			name: "parent override blocks child requests",
+			requests: [
+				{ forcedTheme: "dark", priority: 10, overrideChildren: true, depth: 0 },
+				{ forcedTheme: "light", priority: 100, overrideChildren: false, depth: 1 },
+			],
+			expected: "dark",
+		},
+		{
+			name: "grandparent override blocks deeply nested requests",
+			requests: [
+				{ forcedTheme: "light", priority: 0, overrideChildren: true, depth: 0 },
+				{ forcedTheme: "dark", priority: 50, overrideChildren: false, depth: 1 },
+				{ forcedTheme: "system", priority: 100, overrideChildren: false, depth: 2 },
+			],
+			expected: "light",
+		},
+		{
+			name: "last sibling wins when priorities tie",
+			requests: [
+				{ forcedTheme: "light", priority: 0, overrideChildren: false, depth: 0 },
+				{ forcedTheme: "dark", priority: 0, overrideChildren: false, depth: 0 },
+			],
+			expected: "dark",
+		},
+		{
+			name: "undefined request wins by priority",
+			requests: [
+				{ forcedTheme: undefined, priority: 10, overrideChildren: false, depth: 0 },
+				{ forcedTheme: "light", priority: 0, overrideChildren: false, depth: 0 },
+			],
+			expected: undefined,
+		},
+	];
+
+	it.each(scenarios)("$name", ({ requests, expected }) => {
+		expect(resolveServerSide(requests)).toBe(expected);
+		expect(resolveClientSide(requests)).toBe(expected);
 	});
 });

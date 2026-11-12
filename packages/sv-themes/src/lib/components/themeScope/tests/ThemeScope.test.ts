@@ -1,4 +1,4 @@
-import { createRawSnippet, mount, unmount } from "svelte";
+import { createRawSnippet, flushSync, mount, unmount } from "svelte";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as themeManagerContextModule from "#lib/contexts/themeManagerContext.svelte.js";
 import { createThemeManager } from "#lib/core/themeManager/createThemeManager.svelte.js";
@@ -6,10 +6,10 @@ import { THEME_MANAGER_INTERNAL } from "#lib/core/themeManager/index.js";
 import { expectOk } from "#lib/tests/setup.js";
 import { testEnv } from "#lib/tests/testEnvironment.js";
 import { MOCK_THEME_MANAGER_CONFIG } from "#lib/tests/themeManager.js";
-import ForceTheme from "../ForceTheme.svelte";
-import NestedForceThemesFixture from "./NestedForceThemes.fixture.svelte";
+import ThemeScope from "../ThemeScope.svelte";
+import NestedThemeScopesFixture from "./NestedThemeScopes.fixture.svelte";
 
-describe("ForceTheme", () => {
+describe("ThemeScope", () => {
 	let themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
 
 	beforeEach(() => {
@@ -19,7 +19,7 @@ describe("ForceTheme", () => {
 	});
 
 	it("registers the theme and updates dominantForcedTheme", () => {
-		const component = mount(ForceTheme, {
+		const component = mount(ThemeScope, {
 			target: document.body,
 			props: {
 				forcedTheme: "dark",
@@ -33,7 +33,7 @@ describe("ForceTheme", () => {
 	});
 
 	it("unregisters itself from the registry upon destruction", () => {
-		const component = mount(ForceTheme, {
+		const component = mount(ThemeScope, {
 			target: document.body,
 			props: {
 				forcedTheme: "light",
@@ -48,7 +48,7 @@ describe("ForceTheme", () => {
 	});
 
 	it("blocks child themes when ancestor has overrideChildren enabled", () => {
-		const component = mount(NestedForceThemesFixture, {
+		const component = mount(NestedThemeScopesFixture, {
 			target: document.body,
 			props: {
 				parentTheme: "light",
@@ -65,7 +65,7 @@ describe("ForceTheme", () => {
 	});
 
 	it("allows child themes to override when ancestor has overrideChildren disabled", () => {
-		const component = mount(NestedForceThemesFixture, {
+		const component = mount(NestedThemeScopesFixture, {
 			target: document.body,
 			props: {
 				parentTheme: "light",
@@ -81,8 +81,78 @@ describe("ForceTheme", () => {
 		unmount(component);
 	});
 
+	it("blocks grandchildren when an ancestor has overrideChildren enabled", () => {
+		const component = mount(NestedThemeScopesFixture, {
+			target: document.body,
+			props: {
+				parentTheme: "light",
+				parentOverride: true,
+				parentPriority: 0,
+				childTheme: "dark",
+				childPriority: 1,
+				childOverride: false,
+				grandchildTheme: "system",
+				grandchildPriority: 100,
+			},
+		});
+
+		expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.dominantForcedTheme).toBe("light");
+
+		unmount(component);
+	});
+
+	it("allows a grandchild to win when no ancestor has overrideChildren enabled", () => {
+		const component = mount(NestedThemeScopesFixture, {
+			target: document.body,
+			props: {
+				parentTheme: "light",
+				parentOverride: false,
+				parentPriority: 0,
+				childTheme: "dark",
+				childPriority: 1,
+				childOverride: false,
+				grandchildTheme: "system",
+				grandchildPriority: 100,
+			},
+		});
+
+		expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.dominantForcedTheme).toBe("system");
+
+		unmount(component);
+	});
+
+	it("restores an earlier sibling scope when the later one unmounts", () => {
+		const first = mount(ThemeScope, {
+			target: document.createElement("div"),
+			props: {
+				forcedTheme: "light",
+				priority: 0,
+			},
+		});
+
+		const second = mount(ThemeScope, {
+			target: document.createElement("div"),
+			props: {
+				forcedTheme: "dark",
+				priority: 1,
+			},
+		});
+
+		expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.dominantForcedTheme).toBe("dark");
+
+		flushSync();
+
+		unmount(second);
+
+		expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.dominantForcedTheme).toBe("light");
+
+		unmount(first);
+
+		expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.dominantForcedTheme).toBeUndefined();
+	});
+
 	it("registers with default props if optional parameters are omitted", () => {
-		const component = mount(ForceTheme, {
+		const component = mount(ThemeScope, {
 			target: document.body,
 		});
 
@@ -94,7 +164,7 @@ describe("ForceTheme", () => {
 	it("renders the meta tag in svelte:head when running on the server", () => {
 		testEnv().browser(false).apply();
 
-		const component = mount(ForceTheme, {
+		const component = mount(ThemeScope, {
 			target: document.body,
 			props: {
 				forcedTheme: "dark",
@@ -122,7 +192,7 @@ describe("ForceTheme", () => {
 		}));
 
 		const container = document.createElement("div");
-		const component = mount(ForceTheme, {
+		const component = mount(ThemeScope, {
 			target: container,
 			props: {
 				children: mockSnippet,

@@ -1,6 +1,6 @@
 export { themeSelector } from "./actions/themeSelector.svelte.js";
 
-export { default as ForceTheme } from "./components/forceTheme/ForceTheme.svelte";
+export { default as ThemeScope } from "./components/themeScope/ThemeScope.svelte";
 
 export {
 	getThemeManager,

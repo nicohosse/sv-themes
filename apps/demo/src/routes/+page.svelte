@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { ForceTheme, themeSelector } from "sv-themes";
+	import { ThemeScope, themeSelector } from "sv-themes";
 	import { themeManager } from "#lib/themeManager.svelte.js";
 
 	let forcedTheme = $state<string | undefined>();
 </script>
 
 <main>
-	<ForceTheme {forcedTheme} />
+	<ThemeScope {forcedTheme} />
 	{#each themeManager.themeIds as themeId}
 		<button
 			type="button"

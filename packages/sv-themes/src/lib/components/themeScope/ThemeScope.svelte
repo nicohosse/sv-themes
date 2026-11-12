@@ -1,26 +1,26 @@
 <script lang="ts" generics="const Themes extends ThemeRecord">
 	import { BROWSER } from "esm-env";
 	import type { Snippet } from "svelte";
-	import { getForceThemeContext, setForceThemeContext } from "#lib/contexts/forceThemeParentIdContext.svelte.js";
 	import { getThemeManager } from "#lib/contexts/themeManagerContext.svelte.js";
+	import { getThemeScopeContext, setThemeScopeContext } from "#lib/contexts/themeScopeContext.svelte.js";
 	import type { ThemeRecord } from "#lib/core/theme/theme.js";
 	import { INTERNAL as THEME_MANAGER_INTERNAL } from "#lib/core/themeManager/themeManager.js";
 
-	interface ForceThemeProps<Themes extends ThemeRecord> {
+	interface ThemeScopeProps<Themes extends ThemeRecord> {
 		forcedTheme?: keyof Themes | "system";
 		priority?: number;
 		overrideChildren?: boolean;
 		children?: Snippet;
 	}
 
-	let { forcedTheme, priority = 0, overrideChildren = false, children }: ForceThemeProps<Themes> = $props();
+	let { forcedTheme, priority = 0, overrideChildren = false, children }: ThemeScopeProps<Themes> = $props();
 
-	const id = Symbol("force-theme");
-	const parent = getForceThemeContext();
+	const id = Symbol("theme-scope");
+	const parent = getThemeScopeContext();
 	const parentId = parent?.id;
 	const depth = (parent?.depth ?? -1) + 1;
 
-	setForceThemeContext({ id, depth });
+	setThemeScopeContext({ id, depth });
 
 	let themeManager = getThemeManager();
 
