@@ -7,6 +7,7 @@
 	let forcedTheme = $state<DemoTheme | "system">();
 	let overrideChildren = $state(false);
 	let mountNested = $state(false);
+	let localTheme = $state<DemoTheme | "system">("forest");
 
 	function toggleForced(theme: DemoTheme | "system" | undefined) {
 		forcedTheme = forcedTheme === theme ? undefined : theme;
@@ -114,10 +115,55 @@
 		</div>
 	</ThemeScope>
 
+	<div class="local-playground">
+		<div class="local-head">
+			<div>
+				<p class="label">Local theme</p>
+				<p class="stage-title">Only this box changes. The document stays <code>{themeManager.resolvedTheme}</code>.</p>
+			</div>
+			<div class="button-row">
+				{#each themeManager.themeIds as themeId (themeId)}
+					<button
+						class="btn btn-sm"
+						type="button"
+						class:is-active={localTheme === themeId}
+						aria-pressed={localTheme === themeId}
+						onclick={() => (localTheme = themeId)}
+					>
+						{themeId}
+					</button>
+				{/each}
+				<button
+					class="btn btn-sm"
+					type="button"
+					class:is-active={localTheme === "system"}
+					aria-pressed={localTheme === "system"}
+					onclick={() => (localTheme = "system")}
+				>
+					system
+				</button>
+			</div>
+		</div>
+
+		<ThemeScope theme={localTheme} class="local-scope">
+			<div class="local-stage">
+				<div>
+					<p class="label">Local scope</p>
+					<p class="local-copy">
+						Requests <code>{localTheme}</code> for its own subtree. Open the inspector above — the root
+						<code>data-theme</code>
+						does not move.
+					</p>
+				</div>
+				<span class="local-chip">{localTheme}</span>
+			</div>
+		</ThemeScope>
+	</div>
+
 	<p class="scope-note">
-		A scoped override applies globally while its owner is mounted. Uncheck the nested scope, clear the outer request, or
-		navigate away and the forced theme is cleaned up automatically. The same tree is reconstructed on the server from
-		rendered meta tags, so SSR and hydration agree.
+		<code>forcedTheme</code>
+		changes the document while its owner is mounted. <code>theme</code> only wraps the subtree below it and never
+		registers a global request. Both use the same theme attributes, so variable-driven styles follow the nearest scope.
 	</p>
 </section>
 
@@ -242,6 +288,50 @@
 	.stage-empty {
 		color: var(--text-soft);
 		font-size: 13px;
+	}
+
+	.local-playground {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+
+	.local-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+	}
+
+	.local-stage {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		padding: 20px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--surface);
+		color: var(--text);
+	}
+
+	.local-copy {
+		max-width: 60ch;
+		margin-top: 4px;
+		color: var(--text-soft);
+		font-size: 13px;
+		line-height: 1.5;
+	}
+
+	.local-chip {
+		padding: 4px 10px;
+		border-radius: 999px;
+		background: var(--accent-soft);
+		color: var(--accent);
+		font-family: var(--font-mono);
+		font-size: 12px;
 	}
 
 	.scope-note {

@@ -1,4 +1,5 @@
-:root {
+:root,
+[data-theme="light"] {
 	--font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 	--font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", "Roboto Mono", Consolas, monospace;
 
@@ -30,7 +31,7 @@
 	--max-width: 1120px;
 }
 
-:root[data-theme="dark"] {
+[data-theme="dark"] {
 	--bg: #141413;
 	--surface: #1b1b19;
 	--surface-sunken: #111110;
@@ -54,7 +55,7 @@
 	--ring: rgba(255, 112, 64, 0.4);
 }
 
-:root[data-theme="forest"] {
+[data-theme="forest"] {
 	--bg: #eef1ec;
 	--surface: #f9faf7;
 	--surface-sunken: #e4e8e0;
@@ -78,7 +79,7 @@
 	--ring: rgba(44, 110, 73, 0.35);
 }
 
-:root[data-theme="midnight"] {
+[data-theme="midnight"] {
 	--bg: #15131a;
 	--surface: #1c1924;
 	--surface-sunken: #110f15;

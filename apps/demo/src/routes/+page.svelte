@@ -105,7 +105,9 @@
 					<h2>Scopes</h2>
 					<p>
 						<code>ThemeScope</code>
-						registers a runtime override. Higher priority wins, a parent with
+						supports two modes. <code>theme</code> applies a theme to a local subtree only, while
+						<code>forcedTheme</code>
+						registers a global override: higher priority wins, a parent with
 						<code>overrideChildren</code>
 						blocks descendants, and unmounting cleans up automatically.
 					</p>
