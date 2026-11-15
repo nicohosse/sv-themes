@@ -1,13 +1,50 @@
-import { createAppThemeManager, createThemeManager, DEFAULT_THEMES, type ThemeManagerConfig } from "sv-themes";
+import { createAppThemeManager, createThemeManager, createThemes, type ThemeManagerConfig } from "sv-themes";
 
-export const DEMO_THEME_MANAGER_CONFIG = {
-	themes: DEFAULT_THEMES,
+/**
+ * The demo registers more than plain light/dark themes so the page can exercise
+ * custom class names, per-theme colors, favicons, and explicit system mappings.
+ */
+export const DEMO_THEMES = createThemes([
+	{ id: "light", type: "light", color: "#f5f5f3", favicon: "/favicon-light.svg" },
+	{ id: "dark", type: "dark", color: "#141413", favicon: "/favicon-dark.svg" },
+	{
+		id: "forest",
+		type: "light",
+		className: "theme-forest",
+		color: "#eef1ec",
+		favicon: "/favicon-forest.svg",
+	},
+	{
+		id: "midnight",
+		type: "dark",
+		className: "theme-midnight",
+		color: "#15131a",
+		favicon: "/favicon-midnight.svg",
+	},
+]);
+
+export const DEMO_THEME_MANAGER_CONFIG: ThemeManagerConfig<typeof DEMO_THEMES> = {
+	themes: DEMO_THEMES,
 	initialTheme: "light",
 	systemThemes: {
 		kind: "enabled",
+		// Map the OS preference to a custom theme to show that system resolution
+		// is not limited to the first registered light/dark pair.
+		mappings: {
+			light: "light",
+			dark: "midnight",
+		},
 	},
 	useSystemTheme: true,
-} as const satisfies ThemeManagerConfig<typeof DEFAULT_THEMES>;
+	attributes: ["class", "data-theme"],
+	storage: {
+		methods: ["cookie", "localStorage"],
+		key: "sv-themes-demo",
+		cookie: {
+			name: "sv-themes-demo",
+		},
+	},
+};
 
 function throwThemeManagerErrors(errors: { message: string }[]): never {
 	throw new Error(JSON.stringify(errors.map((error) => error.message)));
