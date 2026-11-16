@@ -4,6 +4,7 @@
 	import { getThemeManager, setScopedThemeManager } from "#lib/contexts/themeManagerContext.svelte.js";
 	import { getThemeScopeContext, setThemeScopeContext } from "#lib/contexts/themeScopeContext.svelte.js";
 	import { logWarn } from "#lib/core/logger.js";
+	import { safeSerializeArgument } from "#lib/core/script.js";
 	import type { ThemeRecord } from "#lib/core/theme/theme.js";
 	import { INTERNAL as THEME_MANAGER_INTERNAL } from "#lib/core/themeManager/themeManager.js";
 
@@ -54,6 +55,8 @@
 		class?: string;
 		/** Extra inline styles for the local wrapper. */
 		style?: string;
+		/** CSP nonce for the pre-paint boot script of a local `theme="system"` scope. */
+		cspNonce?: string;
 		children?: Snippet;
 		/** Additional attributes, such as `id`, `aria-*`, or event handlers, forwarded to a local wrapper. */
 		[attribute: string]: unknown;
@@ -67,6 +70,7 @@
 		as = "div",
 		class: className,
 		style,
+		cspNonce,
 		children,
 		...rest
 	}: ThemeScopeProps<Themes> = $props();
@@ -161,6 +165,33 @@
 		return styles.join(" ");
 	});
 
+	function toBootTheme(themeId: keyof Themes | undefined) {
+		if (!themeId) return null;
+
+		const theme = themeManager.themes[themeId];
+
+		if (!theme) return null;
+
+		return { id: theme.id, c: theme.className ?? theme.id, t: theme.type };
+	}
+
+	// A local `theme="system"` scope is not covered by the head boot script, which can
+	// only reach `<html>`. Serialize what a tiny inline script needs to align this
+	// wrapper with the OS preference before hydrate.
+	const localBootScript = $derived.by(() => {
+		if (isGlobal || theme !== "system" || themeManager.systemThemes.kind !== "enabled") return undefined;
+
+		const { mappings } = themeManager.systemThemes;
+
+		return safeSerializeArgument({
+			a: themeManager.attributes,
+			l: toBootTheme(mappings.light),
+			d: toBootTheme(mappings.dark),
+			ac: themeManager.themeIds.map((id) => themeManager.themes[id].className ?? id),
+			cs: themeManager.useColorScheme,
+		});
+	});
+
 	if (!isGlobal) {
 		// Expose the effective theme to descendants through the manager context.
 		// Everything else (selected/forced state, methods, events) stays global.
@@ -212,6 +243,26 @@
 	<svelte:element this={as} {...rest} class={localClassName || undefined} style={localStyle} {...localAttributes}>
 		{@render children?.()}
 	</svelte:element>
+	{#if !BROWSER && localBootScript !== undefined}
+		<script nonce={cspNonce} data-sv-themes-boot={localBootScript}>
+			(() => {
+				const script = document.currentScript;
+				const wrapper = script?.previousElementSibling;
+				if (!script || !wrapper) return;
+				const config = JSON.parse(script.dataset.svThemesBoot ?? "null");
+				if (!config) return;
+				const theme = globalThis.matchMedia("(prefers-color-scheme: dark)").matches ? config.d : config.l;
+				if (!theme) return;
+				for (const attribute of config.a) {
+					if (attribute === "class") {
+						wrapper.classList.remove(...config.ac);
+						wrapper.classList.add(theme.c);
+					} else wrapper.setAttribute(attribute, theme.id);
+				}
+				if (config.cs) wrapper.style.colorScheme = theme.t;
+			})();
+		</script>
+	{/if}
 {:else}
 	{@render children?.()}
 {/if}

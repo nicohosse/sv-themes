@@ -13,5 +13,5 @@ Add SvelteKit 3 support, locally scoped themes, and request-isolated theme state
 - Add locally scoped themes. `ThemeScope` now takes a single `theme` and a `mode`:
 	- `mode="local"` (default) applies the theme to its own subtree only. It renders a configurable wrapper (`as`, `class`, `style`, plus forwarded attributes) carrying the theme attributes and `color-scheme`, without changing the document root, persistence, selected/forced state, or lifecycle events.
 	- `mode="global"` forces the document root, with the existing priorities and `overrideChildren` locks.
-	- `theme="system"` resolves through your configured system mappings and follows OS changes.
+	- `theme="system"` resolves through your configured system mappings, follows OS changes, and local system scopes bootstrap before first paint with a small inline script. Pass `cspNonce` to `ThemeScope` when using a CSP with nonces.
 	- Components inside a local scope see the scoped theme through `getThemeManager().resolvedTheme` and `resolvedUseSystemTheme`; other manager state and methods stay global.

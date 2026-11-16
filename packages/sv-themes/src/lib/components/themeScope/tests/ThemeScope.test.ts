@@ -240,6 +240,16 @@ describe("ThemeScope", () => {
 	});
 
 	describe("local themes", () => {
+		function runBootScript(container: HTMLElement) {
+			const script = container.querySelector<HTMLScriptElement>("script[data-sv-themes-boot]");
+
+			expect(script).not.toBeNull();
+
+			vi.spyOn(document, "currentScript", "get").mockReturnValue(script);
+
+			new Function(script?.textContent ?? "")();
+		}
+
 		it("applies the theme to a wrapper by default", () => {
 			const container = document.createElement("div");
 
@@ -317,6 +327,136 @@ describe("ThemeScope", () => {
 			expect(wrapper.style.colorScheme).toBe("dark");
 
 			unmount(component);
+		});
+
+		it("bootstraps a server-rendered local system scope before hydration", () => {
+			testEnv().browser(false).systemTheme("light").apply();
+
+			const container = document.createElement("div");
+
+			const component = mount(ThemeScope, {
+				target: container,
+				props: {
+					theme: "system",
+				},
+			});
+
+			const wrapper = container.querySelector<HTMLElement>("[data-theme]");
+			const script = container.querySelector<HTMLScriptElement>("script[data-sv-themes-boot]");
+
+			expect(wrapper?.dataset.theme).toBe("light");
+			expect(script).not.toBeNull();
+			expect(JSON.parse(script?.dataset.svThemesBoot ?? "null")).toEqual({
+				a: ["class", "data-theme"],
+				l: { id: "light", c: "light", t: "light" },
+				d: { id: "dark", c: "dark", t: "dark" },
+				ac: ["light", "dark"],
+				cs: true,
+			});
+
+			// The server fallback was light; the client prefers dark, and the boot
+			// script must fix the wrapper before hydration.
+			testEnv().systemTheme("dark").apply();
+
+			runBootScript(container);
+
+			expect(wrapper?.dataset.theme).toBe("dark");
+			expect(wrapper?.classList.contains("dark")).toBe(true);
+			expect(wrapper?.classList.contains("light")).toBe(false);
+			expect(wrapper?.style.colorScheme).toBe("dark");
+
+			unmount(component);
+		});
+
+		it("bootstraps custom attributes and mappings without color-scheme", () => {
+			testEnv().browser(false).systemTheme("light").apply();
+
+			const themes = createThemes([
+				{ id: "day", type: "light", className: "theme-day" },
+				{ id: "night", type: "dark", className: "theme-night" },
+			]);
+			const customManager = expectOk(
+				createThemeManager({
+					themes,
+					initialTheme: "day",
+					systemThemes: { kind: "enabled", mappings: { light: "day", dark: "night" } },
+					attributes: ["class", "data-theme", "data-palette"],
+					useColorScheme: false,
+					enableLogging: false,
+				}),
+			);
+
+			vi.spyOn(themeManagerContextModule, "getThemeManager").mockImplementation(() => customManager);
+
+			const container = document.createElement("div");
+
+			const component = mount(ThemeScope, {
+				target: container,
+				props: {
+					theme: "system",
+				},
+			});
+
+			const wrapper = container.querySelector<HTMLElement>("[data-theme]") as HTMLElement;
+
+			expect(wrapper.dataset.theme).toBe("day");
+			expect(wrapper.dataset.palette).toBe("day");
+			expect(wrapper.classList.contains("theme-day")).toBe(true);
+			expect(wrapper.style.colorScheme).toBe("");
+
+			testEnv().systemTheme("dark").apply();
+
+			runBootScript(container);
+
+			expect(wrapper.dataset.theme).toBe("night");
+			expect(wrapper.dataset.palette).toBe("night");
+			expect(wrapper.classList.contains("theme-night")).toBe(true);
+			expect(wrapper.classList.contains("theme-day")).toBe(false);
+			expect(wrapper.style.colorScheme).toBe("");
+
+			unmount(component);
+		});
+
+		it("adds the CSP nonce to the local boot script", () => {
+			testEnv().browser(false).apply();
+
+			const container = document.createElement("div");
+
+			const component = mount(ThemeScope, {
+				target: container,
+				props: {
+					theme: "system",
+					cspNonce: "test-nonce",
+				},
+			});
+
+			const script = container.querySelector<HTMLScriptElement>("script[data-sv-themes-boot]");
+
+			expect(script?.getAttribute("nonce")).toBe("test-nonce");
+			expect(container.firstElementChild?.hasAttribute("nonce")).toBe(false);
+
+			unmount(component);
+		});
+
+		it("does not render a boot script for concrete themes or global scopes", () => {
+			const localContainer = document.createElement("div");
+			const local = mount(ThemeScope, { target: localContainer, props: { theme: "dark" } });
+
+			expect(localContainer.querySelector("script[data-sv-themes-boot]")).toBeNull();
+
+			unmount(local);
+
+			testEnv().browser(false).apply();
+
+			const globalContainer = document.createElement("div");
+			const globalScope = mount(ThemeScope, {
+				target: globalContainer,
+				props: { theme: "system", mode: "global" },
+			});
+
+			expect(globalContainer.querySelector("script[data-sv-themes-boot]")).toBeNull();
+
+			unmount(globalScope);
 		});
 
 		it("updates the wrapper when the theme changes without notifying the manager", () => {
