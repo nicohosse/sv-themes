@@ -11,6 +11,7 @@ import ThemeScope from "../ThemeScope.svelte";
 import LocalThemeScopesFixture from "./LocalThemeScopes.fixture.svelte";
 import LocalTransparentScopeFixture from "./LocalTransparentScope.fixture.svelte";
 import NestedThemeScopesFixture from "./NestedThemeScopes.fixture.svelte";
+import ReactiveLocalScopeFixture from "./ReactiveLocalScope.fixture.svelte";
 
 describe("ThemeScope", () => {
 	let themeManager = expectOk(createThemeManager(MOCK_THEME_MANAGER_CONFIG));
@@ -25,7 +26,8 @@ describe("ThemeScope", () => {
 		const component = mount(ThemeScope, {
 			target: document.body,
 			props: {
-				forcedTheme: "dark",
+				theme: "dark",
+				scope: "global",
 				priority: 0,
 			},
 		});
@@ -39,7 +41,8 @@ describe("ThemeScope", () => {
 		const component = mount(ThemeScope, {
 			target: document.body,
 			props: {
-				forcedTheme: "light",
+				theme: "light",
+				scope: "global",
 			},
 		});
 
@@ -128,7 +131,8 @@ describe("ThemeScope", () => {
 		const first = mount(ThemeScope, {
 			target: document.createElement("div"),
 			props: {
-				forcedTheme: "light",
+				theme: "light",
+				scope: "global",
 				priority: 0,
 			},
 		});
@@ -136,7 +140,8 @@ describe("ThemeScope", () => {
 		const second = mount(ThemeScope, {
 			target: document.createElement("div"),
 			props: {
-				forcedTheme: "dark",
+				theme: "dark",
+				scope: "global",
 				priority: 1,
 			},
 		});
@@ -154,12 +159,33 @@ describe("ThemeScope", () => {
 		expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.dominantForcedTheme).toBeUndefined();
 	});
 
-	it("registers with default props if optional parameters are omitted", () => {
+	it("registers a global scope with default props if optional parameters are omitted", () => {
 		const component = mount(ThemeScope, {
 			target: document.body,
+			props: {
+				scope: "global",
+			},
 		});
 
+		expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.requests).toHaveLength(1);
 		expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.dominantForcedTheme).toBeUndefined();
+
+		unmount(component);
+	});
+
+	it("does not render a wrapper element for a global scope", () => {
+		const container = document.createElement("div");
+
+		const component = mount(ThemeScope, {
+			target: container,
+			props: {
+				theme: "dark",
+				scope: "global",
+			},
+		});
+
+		expect(container.firstElementChild).toBeNull();
+		expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.dominantForcedTheme).toBe("dark");
 
 		unmount(component);
 	});
@@ -170,7 +196,8 @@ describe("ThemeScope", () => {
 		const component = mount(ThemeScope, {
 			target: document.body,
 			props: {
-				forcedTheme: "dark",
+				theme: "dark",
+				scope: "global",
 				priority: 0,
 				overrideChildren: true,
 			},
@@ -206,12 +233,13 @@ describe("ThemeScope", () => {
 
 		expect(childElement).not.toBeNull();
 		expect(childElement?.textContent).toBe("Test Snippet");
+		expect(container.firstElementChild?.id).toBe("child");
 
 		unmount(component);
 	});
 
 	describe("local themes", () => {
-		it("applies the theme to a wrapper instead of the document", () => {
+		it("applies the theme to a wrapper by default", () => {
 			const container = document.createElement("div");
 
 			const component = mount(ThemeScope, {
@@ -290,6 +318,110 @@ describe("ThemeScope", () => {
 			unmount(component);
 		});
 
+		it("updates the wrapper when the theme changes without notifying the manager", () => {
+			const container = document.createElement("div");
+			const component = mount(ReactiveLocalScopeFixture, { target: container });
+
+			const toggle = container.querySelector<HTMLButtonElement>("#toggle-theme");
+			const wrapper = () => container.querySelector<HTMLElement>("[data-theme]");
+
+			expect(wrapper()?.dataset.theme).toBe("dark");
+			expect(container.querySelector("#reactive-content")).not.toBeNull();
+
+			const beforeChange = vi.fn();
+			const afterChange = vi.fn();
+			const select = vi.fn();
+			const forced = vi.fn();
+			const unforced = vi.fn();
+			const systemChange = vi.fn();
+
+			const unsubscribers = [
+				themeManager.on("beforeChange", beforeChange),
+				themeManager.on("afterChange", afterChange),
+				themeManager.on("select", select),
+				themeManager.on("forced", forced),
+				themeManager.on("unforced", unforced),
+				themeManager.on("systemChange", systemChange),
+			];
+
+			toggle?.click();
+			flushSync();
+
+			expect(wrapper()?.dataset.theme).toBe("light");
+			expect(container.querySelector("#reactive-content")).not.toBeNull();
+
+			// A local theme is presentation-only: it must not run the manager's
+			// transition pipeline, persistence, or forced-theme registry.
+			for (const listener of [beforeChange, afterChange, select, forced, unforced, systemChange])
+				expect(listener).not.toHaveBeenCalled();
+
+			expect(themeManager.selectedTheme).toBe("light");
+			expect(themeManager.forcedTheme).toBeUndefined();
+			expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.requests).toHaveLength(0);
+
+			for (const unsubscribe of unsubscribers) unsubscribe();
+			unmount(component);
+		});
+
+		it("falls back to the resolved theme when system themes are disabled", () => {
+			const themes = createThemes([
+				{ id: "light", type: "light" },
+				{ id: "dark", type: "dark" },
+			]);
+			const customManager = expectOk(
+				createThemeManager({
+					themes,
+					initialTheme: "dark",
+					systemThemes: { kind: "disabled" },
+				}),
+			);
+
+			vi.spyOn(themeManagerContextModule, "getThemeManager").mockImplementation(() => customManager);
+
+			const container = document.createElement("div");
+
+			const component = mount(ThemeScope, {
+				target: container,
+				props: {
+					theme: "system",
+				},
+			});
+
+			const wrapper = container.firstElementChild as HTMLElement;
+
+			expect(wrapper.dataset.theme).toBe("dark");
+
+			unmount(component);
+		});
+
+		it("omits color-scheme when useColorScheme is disabled", () => {
+			const customManager = expectOk(
+				createThemeManager({
+					...MOCK_THEME_MANAGER_CONFIG,
+					useColorScheme: false,
+				}),
+			);
+
+			vi.spyOn(themeManagerContextModule, "getThemeManager").mockImplementation(() => customManager);
+
+			const container = document.createElement("div");
+
+			const component = mount(ThemeScope, {
+				target: container,
+				props: {
+					theme: "dark",
+				},
+			});
+
+			const wrapper = container.firstElementChild as HTMLElement;
+
+			expect(wrapper.dataset.theme).toBe("dark");
+			expect(wrapper.style.colorScheme).toBe("");
+			expect(wrapper.style.display).toBe("contents");
+
+			unmount(component);
+		});
+
 		it("nests local scopes without touching the document theme", () => {
 			const component = mount(LocalThemeScopesFixture, {
 				target: document.body,
@@ -315,7 +447,8 @@ describe("ThemeScope", () => {
 			const forcedComponent = mount(ThemeScope, {
 				target: document.createElement("div"),
 				props: {
-					forcedTheme: "dark",
+					theme: "dark",
+					scope: "global",
 					priority: 0,
 				},
 			});
@@ -334,40 +467,26 @@ describe("ThemeScope", () => {
 			unmount(forcedComponent);
 		});
 
-		it("keeps local-only scopes transparent to nested global overrides", () => {
+		it("keeps local scopes transparent to nested global overrides", () => {
 			const component = mount(LocalTransparentScopeFixture, {
 				target: document.body,
 				props: {
 					outerTheme: "dark",
 					outerOverride: true,
-					localTheme: "forest",
-					innerTheme: "light",
+					localTheme: "light",
+					innerTheme: "system",
 					innerPriority: 100,
 				},
 			});
 
 			// The local scope does not register a global request, but it must not hide
-			// the outer overrideChildren lock from a nested forced scope either.
+			// the outer overrideChildren lock from a nested global scope either.
 			expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.dominantForcedTheme).toBe("dark");
 
-			unmount(component);
-		});
+			const localWrapper = document.body.querySelector<HTMLElement>('[data-theme="light"]');
 
-		it("supports a global forced theme and a local theme at the same time", () => {
-			const container = document.createElement("div");
-
-			const component = mount(ThemeScope, {
-				target: container,
-				props: {
-					forcedTheme: "dark",
-					theme: "light",
-				},
-			});
-
-			const wrapper = container.firstElementChild as HTMLElement;
-
-			expect(wrapper.dataset.theme).toBe("light");
-			expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.dominantForcedTheme).toBe("dark");
+			expect(localWrapper).not.toBeNull();
+			expect(localWrapper?.style.display).toBe("contents");
 
 			unmount(component);
 		});

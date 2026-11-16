@@ -4,28 +4,28 @@
 
 	type DemoTheme = ThemesOf<typeof themeManager>;
 
-	let forcedTheme = $state<DemoTheme | "system">();
+	let globalTheme = $state<DemoTheme | "system">();
 	let overrideChildren = $state(false);
 	let mountNested = $state(false);
 	let localTheme = $state<DemoTheme | "system">("forest");
 
-	function toggleForced(theme: DemoTheme | "system" | undefined) {
-		forcedTheme = forcedTheme === theme ? undefined : theme;
+	function toggleGlobal(theme: DemoTheme | "system" | undefined) {
+		globalTheme = globalTheme === theme ? undefined : theme;
 	}
 </script>
 
 <section class="scope-playground" aria-labelledby="scope-heading">
 	<div class="scope-controls">
 		<div class="control-block">
-			<p class="label" id="scope-heading">Outer scope request</p>
+			<p class="label" id="scope-heading">Global scope request</p>
 			<div class="button-row">
 				{#each themeManager.themeIds as themeId (themeId)}
 					<button
 						class="btn btn-sm"
 						type="button"
-						class:is-active={forcedTheme === themeId}
-						aria-pressed={forcedTheme === themeId}
-						onclick={() => toggleForced(themeId)}
+						class:is-active={globalTheme === themeId}
+						aria-pressed={globalTheme === themeId}
+						onclick={() => toggleGlobal(themeId)}
 					>
 						{themeId}
 					</button>
@@ -33,18 +33,18 @@
 				<button
 					class="btn btn-sm"
 					type="button"
-					class:is-active={forcedTheme === "system"}
-					aria-pressed={forcedTheme === "system"}
-					onclick={() => toggleForced("system")}
+					class:is-active={globalTheme === "system"}
+					aria-pressed={globalTheme === "system"}
+					onclick={() => toggleGlobal("system")}
 				>
 					system
 				</button>
 				<button
 					class="btn btn-sm"
 					type="button"
-					disabled={forcedTheme === undefined}
+					disabled={globalTheme === undefined}
 					onclick={() => {
-						forcedTheme = undefined;
+						globalTheme = undefined;
 					}}
 				>
 					clear
@@ -67,16 +67,16 @@
 		</div>
 	</div>
 
-	<ThemeScope {forcedTheme} {overrideChildren}>
+	<ThemeScope theme={globalTheme} scope="global" {overrideChildren}>
 		<div class="scope-stage">
 			<div class="stage-head">
 				<div>
 					<p class="label">Mounted scope tree</p>
 					<p class="stage-title">
-						{#if forcedTheme}
-							Outer scope requests <code>{forcedTheme}</code> at <code>priority={0}</code>
+						{#if globalTheme}
+							Global scope requests <code>{globalTheme}</code> at <code>priority={0}</code>
 						{:else}
-							Outer scope has no request
+							Global scope has no request
 						{/if}
 					</p>
 				</div>
@@ -90,7 +90,7 @@
 			</div>
 
 			{#if mountNested}
-				<ThemeScope forcedTheme="midnight" priority={10}>
+				<ThemeScope theme="midnight" scope="global" priority={10}>
 					<div class="nested-stage">
 						<div>
 							<p class="label">Nested ThemeScope</p>
@@ -145,7 +145,7 @@
 			</div>
 		</div>
 
-		<ThemeScope theme={localTheme} class="local-scope">
+		<ThemeScope theme={localTheme} scope="local" class="local-scope">
 			<div class="local-stage">
 				<div>
 					<p class="label">Local scope</p>
@@ -161,9 +161,10 @@
 	</div>
 
 	<p class="scope-note">
-		<code>forcedTheme</code>
-		changes the document while its owner is mounted. <code>theme</code> only wraps the subtree below it and never
-		registers a global request. Both use the same theme attributes, so variable-driven styles follow the nearest scope.
+		<code>scope="global"</code>
+		changes the document while its owner is mounted. <code>scope="local"</code> (the default) only wraps the subtree
+		below it and never registers a global request. Both use the same theme attributes, so variable-driven styles follow
+		the nearest scope.
 	</p>
 </section>
 

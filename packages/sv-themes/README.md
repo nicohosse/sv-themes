@@ -480,9 +480,9 @@ If the `storage` configuration is omitted, it defaults to:
 
 ## 🔒 Scoped Themes
 
-`ThemeScope` supports two independent modes: a local `theme` that only affects its own subtree, and a global `forcedTheme` that drives the document root. They can be used separately or combined.
+`ThemeScope` applies a single `theme` either locally or globally, chosen with `scope`. Local is the default, so a scope only affects its own subtree unless you opt into global behavior.
 
-### Local themes
+### Local themes (default)
 
 Use `theme` to apply a theme to a component subtree without changing the document root:
 
@@ -498,7 +498,9 @@ Use `theme` to apply a theme to a component subtree without changing the documen
 </ThemeScope>
 ```
 
-The scope renders a wrapper element carrying the same attributes your manager would apply to `<html>` (`class`, `data-theme`, and any custom attributes), plus `color-scheme` when `useColorScheme` is enabled. It does **not** mutate `selectedTheme`, `forcedTheme`, storage, lifecycle events, the global forced-theme registry, `<meta name="theme-color">`, or the favicon.
+The scope renders a wrapper element carrying the same attributes your manager would apply to `<html>` (`class`, `data-theme`, and any custom attributes), plus `color-scheme` when `useColorScheme` is enabled. It does **not** mutate `selectedTheme`, the manager's forced state, storage, lifecycle events, the global forced-theme registry, `<meta name="theme-color">`, or the favicon.
+
+Components mounted inside the scope resolve `getThemeManager().resolvedTheme` to the local theme, so theme-dependent logic matches the surrounding CSS. Everything else stays global: `selectedTheme`, `forcedTheme`, `useSystemTheme`, manager methods, and lifecycle events.
 
 `theme` also accepts `"system"`, which resolves through your configured system mappings and updates when the OS preference changes. When system themes are disabled, it follows the manager's current resolved theme.
 
@@ -513,47 +515,49 @@ By default the wrapper uses `display: contents`, so it does not introduce a layo
 > **💡 Tip:**
 > **Nested scopes:** Define your theme styles as inherited CSS custom properties (for example `[data-theme="dark"] { --surface: #111; }` and `.card { background: var(--surface); }`). The closest scope then wins naturally, including when local scopes are nested. Attribute-descendant selectors from both scopes can match the same element, so prefer variables for nesting.
 
-### Global forced themes
+### Global themes
 
-Use `forcedTheme` to force a theme for a page, layout, or component subtree globally. Scoped overrides propagate to all nested children and are cleaned up automatically when the scope unmounts.
+Set `scope="global"` to force a theme for a page, layout, or component subtree globally. Global scopes propagate to all nested children and are cleaned up automatically when the scope unmounts.
 
 ```svelte
 <script lang="ts">
 	import { ThemeScope } from "sv-themes";
 </script>
 
-<ThemeScope forcedTheme="dark" priority={0} overrideChildren={false}>
+<ThemeScope theme="dark" scope="global" priority={0} overrideChildren={false}>
 	<!-- Children -->
 </ThemeScope>
 
 <!-- OR -->
 
-<ThemeScope forcedTheme="light" priority={0} overrideChildren={false} />
+<ThemeScope theme="light" scope="global" priority={0} overrideChildren={false} />
 <p>Uses light theme</p>
 ```
 
-Both props can be combined. In this example the document is forced to `dark`, while the wrapped content is locally rendered with `forest`:
+Local and global scopes nest naturally. This forces the document to `dark` while rendering the inner subtree with `forest`:
 
 ```svelte
-<ThemeScope forcedTheme="dark" theme="forest">
-	<!-- Global dark theme, local forest subtree -->
+<ThemeScope theme="dark" scope="global">
+	<ThemeScope theme="forest">
+		<!-- Global dark document, local forest subtree -->
+	</ThemeScope>
 </ThemeScope>
 ```
 
 | Prop | Type | Default | Mode | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| `theme` | `keyof Themes \| "system"` | `undefined` | Local | Applies a theme to this subtree only. |
-| `forcedTheme` | `keyof Themes \| "system"` | `undefined` | Global | The theme to force for this layout/page tree. |
+| `theme` | `keyof Themes \| "system"` | `undefined` | Both | The theme to apply. |
+| `scope` | `"local" \| "global"` | `"local"` | Both | Whether the theme applies to this subtree or the document root. |
 | `priority` | `number` | `0` | Global | Higher priorities override lower priorities. |
 | `overrideChildren` | `boolean` | `false` | Global | If true, blocks downstream child components from changing the global forced theme. |
 | `as` | `keyof HTMLElementTagNameMap` | `"div"` | Local | Wrapper element used for the local theme. |
 | `class` | `string` | `undefined` | Local | Extra classes for the local wrapper. |
 | `style` | `string` | `undefined` | Local | Extra inline styles for the local wrapper. |
 
-`ThemeScope` keeps a runtime registry of mounted global scopes. Nested scopes inherit their parent, and a parent with `overrideChildren` blocks every descendant request. Among unblocked requests, the highest `priority` wins; ties are resolved in favor of the scope declared later in document order. On the server the same tree is reconstructed from the rendered meta tags, so SSR and hydration agree.
+`ThemeScope` keeps a runtime registry of mounted global scopes. Nested global scopes inherit their parent, and a parent with `overrideChildren` blocks every descendant request. Among unblocked requests, the highest `priority` wins; ties are resolved in favor of the scope declared later in document order. On the server the same tree is reconstructed from the rendered meta tags, so SSR and hydration agree.
 
 > **📝 Note:**
-> A `forcedTheme` applies globally while its owning component is mounted, even though it is declared inside a component tree. A `theme` never leaves its subtree. Local-only scopes do not register a global request, so mounting one cannot clear or override an active `forcedTheme` elsewhere.
+> `scope` is structural: it is read when the scope mounts, so keep it static for the component's lifetime. A global scope applies to the document while its owning component is mounted, even though it is declared inside a component tree. A local scope never leaves its subtree and does not register a global request, so mounting one cannot clear or override an active global theme elsewhere.
 
 ---
 

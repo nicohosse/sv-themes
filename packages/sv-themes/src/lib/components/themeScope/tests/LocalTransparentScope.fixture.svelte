@@ -12,12 +12,14 @@
 	let {
 		outerTheme = "dark",
 		outerOverride = true,
-		localTheme = "forest",
+		localTheme = "light",
 		innerTheme = "light",
 		innerPriority = 100,
 	}: Props = $props();
 </script>
 
-<ThemeScope forcedTheme={outerTheme} priority={0} overrideChildren={outerOverride}>
-	<ThemeScope theme={localTheme}> <ThemeScope forcedTheme={innerTheme} priority={innerPriority} /> </ThemeScope>
+<ThemeScope theme={outerTheme} scope="global" priority={0} overrideChildren={outerOverride}>
+	<ThemeScope theme={localTheme} scope="local">
+		<ThemeScope theme={innerTheme} scope="global" priority={innerPriority} />
+	</ThemeScope>
 </ThemeScope>

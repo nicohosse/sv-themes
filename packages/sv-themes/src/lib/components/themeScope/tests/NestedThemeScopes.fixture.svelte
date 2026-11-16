@@ -24,10 +24,10 @@
 	}: Props = $props();
 </script>
 
-<ThemeScope forcedTheme={parentTheme} priority={parentPriority} overrideChildren={parentOverride}>
-	<ThemeScope forcedTheme={childTheme} priority={childPriority} overrideChildren={childOverride}>
+<ThemeScope theme={parentTheme} scope="global" priority={parentPriority} overrideChildren={parentOverride}>
+	<ThemeScope theme={childTheme} scope="global" priority={childPriority} overrideChildren={childOverride}>
 		{#if grandchildTheme !== undefined}
-			<ThemeScope forcedTheme={grandchildTheme} priority={grandchildPriority} />
+			<ThemeScope theme={grandchildTheme} scope="global" priority={grandchildPriority} />
 		{/if}
 	</ThemeScope>
 </ThemeScope>

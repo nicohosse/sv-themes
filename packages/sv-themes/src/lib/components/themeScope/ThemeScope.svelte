@@ -1,26 +1,27 @@
 <script lang="ts" generics="const Themes extends ThemeRecord">
 	import { BROWSER } from "esm-env";
 	import { type Snippet, untrack } from "svelte";
-	import { getThemeManager } from "#lib/contexts/themeManagerContext.svelte.js";
+	import { getThemeManager, setScopedThemeManager } from "#lib/contexts/themeManagerContext.svelte.js";
 	import { getThemeScopeContext, setThemeScopeContext } from "#lib/contexts/themeScopeContext.svelte.js";
 	import type { ThemeRecord } from "#lib/core/theme/theme.js";
 	import { INTERNAL as THEME_MANAGER_INTERNAL } from "#lib/core/themeManager/themeManager.js";
 
 	interface ThemeScopeProps<Themes extends ThemeRecord> {
-		/**
-		 * Applies a theme globally (to the document root) while this scope is mounted.
-		 * Use `theme` for a scope that only affects its own subtree.
-		 */
-		forcedTheme?: keyof Themes | "system";
-		/**
-		 * Applies a theme to this subtree only. The theme is written to a wrapper
-		 * element and never mutates the document root, the manager's selected
-		 * state, storage, or the global forced-theme registry.
-		 */
+		/** Theme to apply, either to the document root or to this subtree. */
 		theme?: keyof Themes | "system";
+		/**
+		 * Where `theme` applies. `"local"` writes the theme to a wrapper around this
+		 * subtree. `"global"` forces the document root while the scope is mounted.
+		 * The value is read when the scope mounts, so keep it static for the
+		 * component's lifetime.
+		 * @default "local"
+		 */
+		scope?: "local" | "global";
+		/** Higher priorities win between global scopes. */
 		priority?: number;
+		/** Prevents descendant global scopes from changing the theme. */
 		overrideChildren?: boolean;
-		/** Wrapper element used by a local `theme`. Defaults to `div`. */
+		/** Wrapper element used by a local scope. Defaults to `div`. */
 		as?: keyof HTMLElementTagNameMap;
 		/** Extra classes for the local wrapper. */
 		class?: string;
@@ -30,8 +31,8 @@
 	}
 
 	let {
-		forcedTheme,
 		theme,
+		scope = "local",
 		priority = 0,
 		overrideChildren = false,
 		as = "div",
@@ -44,13 +45,13 @@
 	const parent = getThemeScopeContext();
 	const parentId = parent?.id;
 	const depth = (parent?.depth ?? -1) + 1;
-	const isLocalOnly = untrack(() => theme !== undefined && forcedTheme === undefined);
+	const isGlobal = untrack(() => scope === "global");
 
-	// Local-only scopes are transparent to the global forced-theme hierarchy, so
+	// Local scopes are transparent to the global forced-theme hierarchy, so
 	// descendants attach to the nearest global scope instead of this one.
-	if (!isLocalOnly) setThemeScopeContext({ id, depth });
+	if (isGlobal) setThemeScopeContext({ id, depth });
 
-	let themeManager = getThemeManager<Themes>();
+	const themeManager = getThemeManager<Themes>();
 
 	const localTheme = $derived.by(() => {
 		if (theme === undefined) return undefined;
@@ -100,15 +101,28 @@
 		return styles.join(" ");
 	});
 
+	if (!isGlobal) {
+		// Expose the effective theme to descendants through the manager context.
+		// Everything else (selected/forced state, methods, events) stays global.
+		setScopedThemeManager(
+			new Proxy(themeManager, {
+				get(target, property, receiver) {
+					if (property === "resolvedTheme") return localTheme?.id ?? Reflect.get(target, property, receiver);
+
+					return Reflect.get(target, property, receiver);
+				},
+			}),
+		);
+	}
+
 	$effect.pre(() => {
-		// A local-only scope must stay out of the global forced-theme competition.
-		// Otherwise its empty request could clear a sibling's global forced theme.
-		if (theme !== undefined && forcedTheme === undefined) return;
+		// Only global scopes participate in the forced-theme competition.
+		if (!isGlobal) return;
 
 		themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.register({
 			id: id,
 			parentId,
-			forcedTheme: forcedTheme?.toString(),
+			forcedTheme: theme?.toString(),
 			priority,
 			overrideChildren,
 		});
@@ -118,12 +132,12 @@
 </script>
 
 <svelte:head>
-	{#if !BROWSER && !(theme !== undefined && forcedTheme === undefined)}
+	{#if !BROWSER && isGlobal}
 		<meta
 			name="sv-themes-force-theme"
 			content={encodeURIComponent(
 				JSON.stringify({
-					forcedTheme: forcedTheme?.toString() ?? null,
+					forcedTheme: theme?.toString() ?? null,
 					priority,
 					overrideChildren,
 					depth,
@@ -133,7 +147,7 @@
 	{/if}
 </svelte:head>
 
-{#if theme !== undefined}
+{#if !isGlobal && theme !== undefined}
 	<svelte:element this={as} class={localClassName || undefined} style={localStyle} {...localAttributes}>
 		{@render children?.()}
 	</svelte:element>

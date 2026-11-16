@@ -20,8 +20,8 @@
 		},
 		{
 			icon: "layers",
-			title: "Scoped overrides",
-			copy: "ThemeScope supports priorities, parent locks, and unmount cleanup, and the same tree is rebuilt from meta tags during SSR.",
+			title: "Scoped themes",
+			copy: 'ThemeScope applies a theme to its own subtree by default, or to the document with scope="global". Priorities and parent locks apply globally, with unmount cleanup and SSR parity.',
 		},
 		{
 			icon: "refresh-cw",

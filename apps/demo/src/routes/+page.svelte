@@ -105,9 +105,9 @@
 					<h2>Scopes</h2>
 					<p>
 						<code>ThemeScope</code>
-						supports two modes. <code>theme</code> applies a theme to a local subtree only, while
-						<code>forcedTheme</code>
-						registers a global override: higher priority wins, a parent with
+						applies a <code>theme</code> to its own subtree by default. Add
+						<code>scope="global"</code>
+						to force the document root instead: higher priority wins, a parent with
 						<code>overrideChildren</code>
 						blocks descendants, and unmounting cleans up automatically.
 					</p>

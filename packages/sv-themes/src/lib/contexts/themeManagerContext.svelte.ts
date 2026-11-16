@@ -25,3 +25,13 @@ export function setThemeManager<const Themes extends ThemeRecord>(
 
 	return ok();
 }
+
+/**
+ * Registers a scope-aware manager for descendants, bypassing the
+ * one-manager guard. Used by `ThemeScope` so `getThemeManager()` resolves
+ * `resolvedTheme` against the nearest local scope.
+ * @internal
+ */
+export function setScopedThemeManager<const Themes extends ThemeRecord>(themeManager: ThemeManager<Themes>): void {
+	setContext(THEME_MANAGER_CONTEXT_SYMBOL, themeManager);
+}
