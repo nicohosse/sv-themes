@@ -105,8 +105,10 @@
 					<h2>Scopes</h2>
 					<p>
 						<code>ThemeScope</code>
-						applies a <code>theme</code> to its own subtree by default. Add
-						<code>scope="global"</code>
+						applies a <code>theme</code> to its own subtree by default, including what
+						<code>getThemeManager().resolvedTheme</code>
+						returns for children. Add
+						<code>mode="global"</code>
 						to force the document root instead: higher priority wins, a parent with
 						<code>overrideChildren</code>
 						blocks descendants, and unmounting cleans up automatically.

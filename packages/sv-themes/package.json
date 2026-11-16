@@ -48,6 +48,7 @@
 	"files": [
 		"dist",
 		"!dist/tests",
+		"!dist/**/tests/**",
 		"!dist/**/*.test.*",
 		"!dist/**/*.spec.*",
 		"!dist/**/*.fixture.*"

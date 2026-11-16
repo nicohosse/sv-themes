@@ -10,6 +10,7 @@ import { MOCK_THEME_MANAGER_CONFIG } from "#lib/tests/themeManager.js";
 import ThemeScope from "../ThemeScope.svelte";
 import LocalThemeScopesFixture from "./LocalThemeScopes.fixture.svelte";
 import LocalTransparentScopeFixture from "./LocalTransparentScope.fixture.svelte";
+import MutableLocalScopeFixture from "./MutableLocalScope.fixture.svelte";
 import NestedThemeScopesFixture from "./NestedThemeScopes.fixture.svelte";
 import ReactiveLocalScopeFixture from "./ReactiveLocalScope.fixture.svelte";
 
@@ -27,7 +28,7 @@ describe("ThemeScope", () => {
 			target: document.body,
 			props: {
 				theme: "dark",
-				scope: "global",
+				mode: "global",
 				priority: 0,
 			},
 		});
@@ -42,7 +43,7 @@ describe("ThemeScope", () => {
 			target: document.body,
 			props: {
 				theme: "light",
-				scope: "global",
+				mode: "global",
 			},
 		});
 
@@ -132,7 +133,7 @@ describe("ThemeScope", () => {
 			target: document.createElement("div"),
 			props: {
 				theme: "light",
-				scope: "global",
+				mode: "global",
 				priority: 0,
 			},
 		});
@@ -141,7 +142,7 @@ describe("ThemeScope", () => {
 			target: document.createElement("div"),
 			props: {
 				theme: "dark",
-				scope: "global",
+				mode: "global",
 				priority: 1,
 			},
 		});
@@ -163,7 +164,7 @@ describe("ThemeScope", () => {
 		const component = mount(ThemeScope, {
 			target: document.body,
 			props: {
-				scope: "global",
+				mode: "global",
 			},
 		});
 
@@ -180,7 +181,7 @@ describe("ThemeScope", () => {
 			target: container,
 			props: {
 				theme: "dark",
-				scope: "global",
+				mode: "global",
 			},
 		});
 
@@ -197,7 +198,7 @@ describe("ThemeScope", () => {
 			target: document.body,
 			props: {
 				theme: "dark",
-				scope: "global",
+				mode: "global",
 				priority: 0,
 				overrideChildren: true,
 			},
@@ -363,7 +364,7 @@ describe("ThemeScope", () => {
 			unmount(component);
 		});
 
-		it("falls back to the resolved theme when system themes are disabled", () => {
+		it("follows the resolved theme when system themes are disabled", async () => {
 			const themes = createThemes([
 				{ id: "light", type: "light" },
 				{ id: "dark", type: "dark" },
@@ -390,6 +391,11 @@ describe("ThemeScope", () => {
 			const wrapper = container.firstElementChild as HTMLElement;
 
 			expect(wrapper.dataset.theme).toBe("dark");
+
+			await customManager.setTheme("light");
+			flushSync();
+
+			expect(wrapper.dataset.theme).toBe("light");
 
 			unmount(component);
 		});
@@ -448,7 +454,7 @@ describe("ThemeScope", () => {
 				target: document.createElement("div"),
 				props: {
 					theme: "dark",
-					scope: "global",
+					mode: "global",
 					priority: 0,
 				},
 			});
@@ -487,6 +493,25 @@ describe("ThemeScope", () => {
 
 			expect(localWrapper).not.toBeNull();
 			expect(localWrapper?.style.display).toBe("contents");
+
+			unmount(component);
+		});
+
+		it("lets a global scope nested inside a local scope win when nothing blocks it", () => {
+			const component = mount(LocalTransparentScopeFixture, {
+				target: document.body,
+				props: {
+					outerTheme: "dark",
+					outerOverride: false,
+					localTheme: "light",
+					innerTheme: "system",
+					innerPriority: 100,
+				},
+			});
+
+			// Local scopes are transparent to the forced-theme tree, so the inner
+			// global request attaches to the outer global scope and competes normally.
+			expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.dominantForcedTheme).toBe("system");
 
 			unmount(component);
 		});
@@ -531,6 +556,95 @@ describe("ThemeScope", () => {
 			expect(wrapper.hasAttribute("data-theme")).toBe(false);
 			expect(wrapper.hasAttribute("class")).toBe(false);
 
+			unmount(component);
+		});
+
+		it("removes the theme attributes when a valid local theme becomes invalid", () => {
+			const container = document.createElement("div");
+			const component = mount(MutableLocalScopeFixture, { target: container });
+
+			const wrapper = container.querySelector<HTMLElement>("[data-theme]");
+
+			expect(wrapper?.dataset.theme).toBe("dark");
+			expect(wrapper?.classList.contains("dark")).toBe(true);
+
+			container.querySelector<HTMLButtonElement>("#set-invalid-theme")?.click();
+			flushSync();
+
+			expect(wrapper?.hasAttribute("data-theme")).toBe(false);
+			expect(wrapper?.hasAttribute("class")).toBe(false);
+			expect(wrapper?.style.colorScheme).toBe("");
+			expect(container.querySelector("#mutable-content")).not.toBeNull();
+
+			unmount(component);
+		});
+
+		it("forwards extra attributes to the local wrapper", () => {
+			const container = document.createElement("div");
+
+			const component = mount(ThemeScope, {
+				target: container,
+				props: {
+					theme: "dark",
+					id: "brand",
+					"aria-label": "Branded section",
+				},
+			});
+
+			const wrapper = container.firstElementChild as HTMLElement;
+
+			expect(wrapper.id).toBe("brand");
+			expect(wrapper.getAttribute("aria-label")).toBe("Branded section");
+			expect(wrapper.dataset.theme).toBe("dark");
+			expect(wrapper.style.display).toBe("contents");
+
+			unmount(component);
+		});
+
+		it("warns and ignores global-only props on a local scope", () => {
+			const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+			const component = mount(ThemeScope, {
+				target: document.createElement("div"),
+				props: {
+					theme: "dark",
+					priority: 5,
+					overrideChildren: true,
+				},
+			});
+
+			expect(warnSpy).toHaveBeenCalledWith(
+				'ThemeScope: `priority` and `overrideChildren` only apply to `mode="global"`; they are ignored here.',
+			);
+			expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.requests).toHaveLength(0);
+
+			warnSpy.mockRestore();
+			unmount(component);
+		});
+
+		it("warns when mode changes at runtime and keeps the mounted behavior", () => {
+			const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+			const container = document.createElement("div");
+			const component = mount(MutableLocalScopeFixture, { target: container });
+
+			const wrapper = () => container.querySelector<HTMLElement>("[data-theme]");
+
+			expect(wrapper()?.dataset.theme).toBe("dark");
+
+			container.querySelector<HTMLButtonElement>("#set-global-mode")?.click();
+			flushSync();
+
+			expect(warnSpy).toHaveBeenCalledOnce();
+			expect(warnSpy).toHaveBeenCalledWith(
+				"ThemeScope: `mode` is read when the scope mounts. Remount the component to change it.",
+			);
+
+			// `mode` is structural, so the mounted scope keeps its original behavior.
+			expect(wrapper()?.dataset.theme).toBe("dark");
+			expect(themeManager[THEME_MANAGER_INTERNAL].forceThemeRegistry.requests).toHaveLength(0);
+
+			warnSpy.mockRestore();
 			unmount(component);
 		});
 

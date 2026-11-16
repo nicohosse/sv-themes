@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { ThemeScope, type ThemesOf } from "sv-themes";
+	import ScopedThemeReadout from "#lib/components/ScopedThemeReadout.svelte";
 	import { themeManager } from "#lib/themeManager.svelte.js";
 
 	type DemoTheme = ThemesOf<typeof themeManager>;
@@ -67,7 +68,7 @@
 		</div>
 	</div>
 
-	<ThemeScope theme={globalTheme} scope="global" {overrideChildren}>
+	<ThemeScope theme={globalTheme} mode="global" {overrideChildren}>
 		<div class="scope-stage">
 			<div class="stage-head">
 				<div>
@@ -90,7 +91,7 @@
 			</div>
 
 			{#if mountNested}
-				<ThemeScope theme="midnight" scope="global" priority={10}>
+				<ThemeScope theme="midnight" mode="global" priority={10}>
 					<div class="nested-stage">
 						<div>
 							<p class="label">Nested ThemeScope</p>
@@ -145,24 +146,27 @@
 			</div>
 		</div>
 
-		<ThemeScope theme={localTheme} scope="local" class="local-scope">
+		<ThemeScope theme={localTheme} mode="local" class="local-scope">
 			<div class="local-stage">
 				<div>
 					<p class="label">Local scope</p>
 					<p class="local-copy">
 						Requests <code>{localTheme}</code> for its own subtree. Open the inspector above — the root
 						<code>data-theme</code>
-						does not move.
+						does not move. Components below read the scoped value from the manager context.
 					</p>
 				</div>
-				<span class="local-chip">{localTheme}</span>
+				<div class="local-result">
+					<span class="local-chip">{localTheme}</span>
+					<ScopedThemeReadout />
+				</div>
 			</div>
 		</ThemeScope>
 	</div>
 
 	<p class="scope-note">
-		<code>scope="global"</code>
-		changes the document while its owner is mounted. <code>scope="local"</code> (the default) only wraps the subtree
+		<code>mode="global"</code>
+		changes the document while its owner is mounted. <code>mode="local"</code> (the default) only wraps the subtree
 		below it and never registers a global request. Both use the same theme attributes, so variable-driven styles follow
 		the nearest scope.
 	</p>
@@ -324,6 +328,13 @@
 		color: var(--text-soft);
 		font-size: 13px;
 		line-height: 1.5;
+	}
+
+	.local-result {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 10px;
 	}
 
 	.local-chip {

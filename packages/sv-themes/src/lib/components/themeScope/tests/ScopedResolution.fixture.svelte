@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { setThemeManager } from "#lib/contexts/themeManagerContext.svelte.js";
+	import { getThemeManager, setThemeManager } from "#lib/contexts/themeManagerContext.svelte.js";
 	import { createThemes } from "#lib/core/theme/theme.js";
 	import { createThemeManager } from "#lib/core/themeManager/createThemeManager.svelte.js";
 	import ThemeScope from "../ThemeScope.svelte";
@@ -14,13 +14,15 @@
 	const themeManagerResult = createThemeManager({
 		themes,
 		initialTheme: "light",
-		systemThemes: { kind: "disabled" },
+		systemThemes: { kind: "enabled" },
 		enableLogging: false,
 	});
 
 	if (themeManagerResult.isErr()) throw new Error("Could not create the test theme manager.");
 
 	setThemeManager(themeManagerResult.value);
+
+	const themeManager = getThemeManager();
 
 	let outerTheme = $state("forest");
 </script>
@@ -37,7 +39,20 @@
 	Cycle local theme
 </button>
 
+<ThemeScope> <ResolvedThemeProbe id="transparent-outside" /> </ThemeScope>
+
 <ThemeScope theme={outerTheme}>
 	<ResolvedThemeProbe id="outer" />
+	<button
+		type="button"
+		id="set-global-dark"
+		onclick={() => {
+			void themeManager.setTheme("dark");
+		}}
+	>
+		Set global dark
+	</button>
+	<ThemeScope> <ResolvedThemeProbe id="transparent-inner" /> </ThemeScope>
+	<ThemeScope theme="system"> <ResolvedThemeProbe id="system" /> </ThemeScope>
 	<ThemeScope theme="light"> <ResolvedThemeProbe id="inner" /> </ThemeScope>
 </ThemeScope>

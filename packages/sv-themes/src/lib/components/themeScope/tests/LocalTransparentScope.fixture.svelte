@@ -18,8 +18,8 @@
 	}: Props = $props();
 </script>
 
-<ThemeScope theme={outerTheme} scope="global" priority={0} overrideChildren={outerOverride}>
-	<ThemeScope theme={localTheme} scope="local">
-		<ThemeScope theme={innerTheme} scope="global" priority={innerPriority} />
+<ThemeScope theme={outerTheme} mode="global" priority={0} overrideChildren={outerOverride}>
+	<ThemeScope theme={localTheme} mode="local">
+		<ThemeScope theme={innerTheme} mode="global" priority={innerPriority} />
 	</ThemeScope>
 </ThemeScope>

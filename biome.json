@@ -8,18 +8,6 @@
 	"files": {
 		"ignoreUnknown": false
 	},
-	"overrides": [
-		{
-			"includes": ["**/themeScope/tests/*.svelte", "**/ScopedOverrides.svelte"],
-			"linter": {
-				"rules": {
-					"a11y": {
-						"noHeaderScope": "off"
-					}
-				}
-			}
-		}
-	],
 	"formatter": {
 		"enabled": true,
 		"indentStyle": "tab",

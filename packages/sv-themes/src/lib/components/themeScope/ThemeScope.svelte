@@ -3,8 +3,35 @@
 	import { type Snippet, untrack } from "svelte";
 	import { getThemeManager, setScopedThemeManager } from "#lib/contexts/themeManagerContext.svelte.js";
 	import { getThemeScopeContext, setThemeScopeContext } from "#lib/contexts/themeScopeContext.svelte.js";
+	import { logWarn } from "#lib/core/logger.js";
 	import type { ThemeRecord } from "#lib/core/theme/theme.js";
 	import { INTERNAL as THEME_MANAGER_INTERNAL } from "#lib/core/themeManager/themeManager.js";
+
+	/** Tags that can safely wrap children; void and document-level tags are excluded. */
+	type LocalWrapperTag = Exclude<
+		keyof HTMLElementTagNameMap,
+		| "area"
+		| "base"
+		| "body"
+		| "br"
+		| "col"
+		| "embed"
+		| "head"
+		| "hr"
+		| "html"
+		| "img"
+		| "input"
+		| "link"
+		| "meta"
+		| "param"
+		| "script"
+		| "source"
+		| "style"
+		| "template"
+		| "title"
+		| "track"
+		| "wbr"
+	>;
 
 	interface ThemeScopeProps<Themes extends ThemeRecord> {
 		/** Theme to apply, either to the document root or to this subtree. */
@@ -16,42 +43,66 @@
 		 * component's lifetime.
 		 * @default "local"
 		 */
-		scope?: "local" | "global";
+		mode?: "local" | "global";
 		/** Higher priorities win between global scopes. */
 		priority?: number;
 		/** Prevents descendant global scopes from changing the theme. */
 		overrideChildren?: boolean;
 		/** Wrapper element used by a local scope. Defaults to `div`. */
-		as?: keyof HTMLElementTagNameMap;
+		as?: LocalWrapperTag;
 		/** Extra classes for the local wrapper. */
 		class?: string;
 		/** Extra inline styles for the local wrapper. */
 		style?: string;
 		children?: Snippet;
+		/** Additional attributes, such as `id`, `aria-*`, or event handlers, forwarded to a local wrapper. */
+		[attribute: string]: unknown;
 	}
 
 	let {
 		theme,
-		scope = "local",
+		mode = "local",
 		priority = 0,
 		overrideChildren = false,
 		as = "div",
 		class: className,
 		style,
 		children,
+		...rest
 	}: ThemeScopeProps<Themes> = $props();
 
 	const id = Symbol("theme-scope");
 	const parent = getThemeScopeContext();
 	const parentId = parent?.id;
 	const depth = (parent?.depth ?? -1) + 1;
-	const isGlobal = untrack(() => scope === "global");
+	const initialMode = untrack(() => mode);
+	const isGlobal = initialMode === "global";
 
 	// Local scopes are transparent to the global forced-theme hierarchy, so
 	// descendants attach to the nearest global scope instead of this one.
 	if (isGlobal) setThemeScopeContext({ id, depth });
 
 	const themeManager = getThemeManager<Themes>();
+
+	if (!isGlobal) {
+		const initialPriority = untrack(() => priority);
+		const initialOverrideChildren = untrack(() => overrideChildren);
+
+		if (initialPriority !== 0 || initialOverrideChildren)
+			logWarn(
+				'ThemeScope: `priority` and `overrideChildren` only apply to `mode="global"`; they are ignored here.',
+				themeManager,
+			);
+	}
+
+	let warnedModeChange = false;
+
+	$effect(() => {
+		if (mode === initialMode || warnedModeChange) return;
+
+		warnedModeChange = true;
+		logWarn("ThemeScope: `mode` is read when the scope mounts. Remount the component to change it.", themeManager);
+	});
 
 	const localTheme = $derived.by(() => {
 		if (theme === undefined) return undefined;
@@ -66,6 +117,15 @@
 		}
 
 		return Object.hasOwn(themeManager.themes, theme) ? themeManager.themes[theme] : undefined;
+	});
+
+	const localResolvedUseSystemTheme = $derived.by(() => {
+		if (!localTheme) return themeManager.resolvedUseSystemTheme;
+		if (theme !== "system") return false;
+
+		// With system themes disabled, the local scope follows the manager's
+		// resolved theme, so inherit the manager's system state as well.
+		return themeManager.systemThemes.kind === "enabled" ? true : themeManager.resolvedUseSystemTheme;
 	});
 
 	const localClassName = $derived.by(() => {
@@ -108,6 +168,7 @@
 			new Proxy(themeManager, {
 				get(target, property, receiver) {
 					if (property === "resolvedTheme") return localTheme?.id ?? Reflect.get(target, property, receiver);
+					if (property === "resolvedUseSystemTheme") return localResolvedUseSystemTheme;
 
 					return Reflect.get(target, property, receiver);
 				},
@@ -148,7 +209,7 @@
 </svelte:head>
 
 {#if !isGlobal && theme !== undefined}
-	<svelte:element this={as} class={localClassName || undefined} style={localStyle} {...localAttributes}>
+	<svelte:element this={as} {...rest} class={localClassName || undefined} style={localStyle} {...localAttributes}>
 		{@render children?.()}
 	</svelte:element>
 {:else}
