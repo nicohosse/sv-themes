@@ -12,6 +12,7 @@ import LocalThemeScopesFixture from "./LocalThemeScopes.fixture.svelte";
 import LocalTransparentScopeFixture from "./LocalTransparentScope.fixture.svelte";
 import MutableLocalScopeFixture from "./MutableLocalScope.fixture.svelte";
 import NestedThemeScopesFixture from "./NestedThemeScopes.fixture.svelte";
+import PrepaintLocalScopeFixture from "./PrepaintLocalScope.fixture.svelte";
 import ReactiveLocalScopeFixture from "./ReactiveLocalScope.fixture.svelte";
 
 describe("ThemeScope", () => {
@@ -350,8 +351,13 @@ describe("ThemeScope", () => {
 				a: ["class", "data-theme"],
 				l: { id: "light", c: "light", t: "light" },
 				d: { id: "dark", c: "dark", t: "dark" },
+				ts: [
+					{ id: "light", c: "light", t: "light" },
+					{ id: "dark", c: "dark", t: "dark" },
+				],
 				ac: ["light", "dark"],
 				cs: true,
+				sys: true,
 			});
 
 			// The server fallback was light; the client prefers dark, and the boot
@@ -436,6 +442,309 @@ describe("ThemeScope", () => {
 			expect(script?.getAttribute("nonce")).toBe("test-nonce");
 			expect(container.firstElementChild?.hasAttribute("nonce")).toBe(false);
 
+			unmount(component);
+		});
+
+		it("reads a persisted local theme on mount", () => {
+			localStorage.setItem("scope-theme", "dark");
+
+			const container = document.createElement("div");
+			const component = mount(ThemeScope, {
+				target: container,
+				props: {
+					theme: "light",
+					prepaint: { storage: "localStorage", key: "scope-theme" },
+				},
+			});
+
+			const wrapper = container.firstElementChild as HTMLElement;
+
+			expect(wrapper.dataset.theme).toBe("dark");
+			expect(wrapper.classList.contains("dark")).toBe(true);
+			expect(wrapper.style.colorScheme).toBe("dark");
+
+			unmount(component);
+		});
+
+		it("reads a persisted local theme from sessionStorage", () => {
+			sessionStorage.setItem("scope-theme", "dark");
+
+			const container = document.createElement("div");
+			const component = mount(ThemeScope, {
+				target: container,
+				props: {
+					theme: "light",
+					prepaint: { storage: "sessionStorage", key: "scope-theme" },
+				},
+			});
+
+			expect((container.firstElementChild as HTMLElement).dataset.theme).toBe("dark");
+
+			unmount(component);
+		});
+
+		it("resolves a persisted system preference on mount", () => {
+			localStorage.setItem("scope-theme", "system");
+
+			const container = document.createElement("div");
+			const component = mount(ThemeScope, {
+				target: container,
+				props: {
+					theme: "dark",
+					prepaint: { storage: "localStorage", key: "scope-theme" },
+				},
+			});
+
+			const wrapper = container.firstElementChild as HTMLElement;
+
+			expect(wrapper.dataset.theme).toBe("light");
+			expect(wrapper.style.colorScheme).toBe("light");
+
+			unmount(component);
+		});
+
+		it("falls back to the server theme when the persisted value is missing or unknown", () => {
+			const container = document.createElement("div");
+			const props = {
+				theme: "light" as const,
+				prepaint: { storage: "localStorage" as const, key: "scope-theme" },
+			};
+
+			for (const stored of [undefined, "unknown"]) {
+				if (stored === undefined) localStorage.removeItem("scope-theme");
+				else localStorage.setItem("scope-theme", stored);
+
+				const component = mount(ThemeScope, { target: container, props });
+				const wrapper = container.querySelector<HTMLElement>("[data-theme]");
+
+				expect(wrapper?.dataset.theme).toBe("light");
+
+				unmount(component);
+			}
+		});
+
+		it("only reads the persisted theme when the scope mounts", () => {
+			localStorage.setItem("scope-theme", "dark");
+
+			const container = document.createElement("div");
+			const component = mount(ThemeScope, {
+				target: container,
+				props: {
+					theme: "light",
+					prepaint: { storage: "localStorage", key: "scope-theme" },
+				},
+			});
+
+			localStorage.setItem("scope-theme", "light");
+			flushSync();
+
+			expect((container.firstElementChild as HTMLElement).dataset.theme).toBe("dark");
+
+			unmount(component);
+		});
+
+		it("lets the theme prop take over after a prepainted mount", () => {
+			const themes = createThemes([
+				{ id: "light", type: "light" },
+				{ id: "dark", type: "dark" },
+				{ id: "sepia", type: "light" },
+			]);
+			const customManager = expectOk(
+				createThemeManager({
+					themes,
+					initialTheme: "light",
+					systemThemes: { kind: "disabled" },
+					enableLogging: false,
+				}),
+			);
+
+			vi.spyOn(themeManagerContextModule, "getThemeManager").mockImplementation(() => customManager);
+
+			localStorage.setItem("scope-theme", "dark");
+
+			const container = document.createElement("div");
+			const component = mount(PrepaintLocalScopeFixture, { target: container });
+			const wrapper = () => container.querySelector<HTMLElement>("[data-theme]");
+
+			expect(wrapper()?.dataset.theme).toBe("dark");
+
+			container.querySelector<HTMLButtonElement>("#set-sepia-theme")?.click();
+			flushSync();
+
+			expect(wrapper()?.dataset.theme).toBe("sepia");
+			expect(container.querySelector("#prepaint-content")).not.toBeNull();
+
+			unmount(component);
+		});
+
+		it("bootstraps a persisted local theme before hydration", () => {
+			testEnv().browser(false).apply();
+			localStorage.setItem("scope-theme", "dark");
+
+			const container = document.createElement("div");
+			const component = mount(ThemeScope, {
+				target: container,
+				props: {
+					theme: "light",
+					prepaint: { storage: "localStorage", key: "scope-theme" },
+				},
+			});
+
+			const wrapper = container.querySelector<HTMLElement>("[data-theme]");
+			const script = container.querySelector<HTMLScriptElement>("script[data-sv-themes-boot]");
+			const payload = JSON.parse(script?.dataset.svThemesBoot ?? "null");
+
+			// The server cannot read browser storage, so it renders the fallback.
+			expect(wrapper?.dataset.theme).toBe("light");
+			expect(payload.p).toEqual({ s: "localStorage", k: "scope-theme" });
+			expect(payload.sys).toBe(false);
+
+			runBootScript(container);
+
+			expect(wrapper?.dataset.theme).toBe("dark");
+			expect(wrapper?.classList.contains("dark")).toBe(true);
+			expect(wrapper?.classList.contains("light")).toBe(false);
+			expect(wrapper?.style.colorScheme).toBe("dark");
+			expect(container.querySelector("script[data-sv-themes-boot]")).toBeNull();
+
+			unmount(component);
+		});
+
+		it("bootstraps a persisted system preference before hydration", () => {
+			testEnv().browser(false).systemTheme("light").apply();
+			localStorage.setItem("scope-theme", "system");
+
+			const container = document.createElement("div");
+			const component = mount(ThemeScope, {
+				target: container,
+				props: {
+					theme: "light",
+					prepaint: { storage: "localStorage", key: "scope-theme" },
+				},
+			});
+
+			const wrapper = container.querySelector<HTMLElement>("[data-theme]");
+
+			expect(wrapper?.dataset.theme).toBe("light");
+
+			testEnv().systemTheme("dark").apply();
+
+			runBootScript(container);
+
+			expect(wrapper?.dataset.theme).toBe("dark");
+			expect(wrapper?.style.colorScheme).toBe("dark");
+
+			unmount(component);
+		});
+
+		it("bootstraps a persisted system preference from the document when system themes are disabled", () => {
+			testEnv().browser(false).apply();
+
+			const themes = createThemes([
+				{ id: "light", type: "light" },
+				{ id: "dark", type: "dark" },
+			]);
+			const customManager = expectOk(
+				createThemeManager({
+					themes,
+					initialTheme: "light",
+					systemThemes: { kind: "disabled" },
+					enableLogging: false,
+				}),
+			);
+
+			vi.spyOn(themeManagerContextModule, "getThemeManager").mockImplementation(() => customManager);
+
+			localStorage.setItem("scope-theme", "system");
+
+			const container = document.createElement("div");
+			const component = mount(ThemeScope, {
+				target: container,
+				props: {
+					theme: "light",
+					prepaint: { storage: "localStorage", key: "scope-theme" },
+				},
+			});
+
+			const wrapper = container.querySelector<HTMLElement>("[data-theme]");
+
+			// Simulate the document-level boot script resolving the global theme.
+			document.documentElement.dataset.theme = "dark";
+			document.documentElement.classList.add("dark");
+
+			runBootScript(container);
+
+			expect(wrapper?.dataset.theme).toBe("dark");
+			expect(wrapper?.classList.contains("dark")).toBe(true);
+
+			unmount(component);
+		});
+
+		it("bootstraps a persisted local theme without a server theme", () => {
+			testEnv().browser(false).apply();
+			localStorage.setItem("scope-theme", "dark");
+
+			const container = document.createElement("div");
+			const component = mount(ThemeScope, {
+				target: container,
+				props: {
+					prepaint: { storage: "localStorage", key: "scope-theme" },
+				},
+			});
+
+			const wrapper = container.firstElementChild as HTMLElement;
+
+			expect(wrapper.tagName).toBe("DIV");
+			expect(wrapper.hasAttribute("data-theme")).toBe(false);
+			expect(container.querySelector("script[data-sv-themes-boot]")).not.toBeNull();
+
+			runBootScript(container);
+
+			expect(wrapper.dataset.theme).toBe("dark");
+
+			unmount(component);
+		});
+
+		it("ignores an unknown persisted theme before hydration", () => {
+			testEnv().browser(false).apply();
+			localStorage.setItem("scope-theme", "unknown");
+
+			const container = document.createElement("div");
+			const component = mount(ThemeScope, {
+				target: container,
+				props: {
+					theme: "light",
+					prepaint: { storage: "localStorage", key: "scope-theme" },
+				},
+			});
+
+			const wrapper = container.querySelector<HTMLElement>("[data-theme]");
+
+			runBootScript(container);
+
+			expect(wrapper?.dataset.theme).toBe("light");
+			expect(container.querySelector("script[data-sv-themes-boot]")).toBeNull();
+
+			unmount(component);
+		});
+
+		it("warns and ignores prepaint on a global scope", () => {
+			const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+			const component = mount(ThemeScope, {
+				target: document.createElement("div"),
+				props: {
+					theme: "dark",
+					mode: "global",
+					prepaint: { storage: "localStorage", key: "scope-theme" },
+				},
+			});
+
+			expect(warnSpy).toHaveBeenCalledWith(
+				'ThemeScope: `prepaint` only applies to `mode="local"`; it is ignored here.',
+			);
+
+			warnSpy.mockRestore();
 			unmount(component);
 		});
 

@@ -34,6 +34,11 @@
 		| "wbr"
 	>;
 
+	interface ThemeScopePrePaint {
+		storage: "localStorage" | "sessionStorage";
+		key: string;
+	}
+
 	interface ThemeScopeProps<Themes extends ThemeRecord> {
 		/** Theme to apply, either to the document root or to this subtree. */
 		theme?: keyof Themes | "system";
@@ -57,6 +62,14 @@
 		style?: string;
 		/** CSP nonce for the pre-paint boot script of a local `theme="system"` scope. */
 		cspNonce?: string;
+		/**
+		 * Reads a persisted local theme from browser storage before first paint.
+		 * The stored value must be a registered theme id or `"system"`; `theme`
+		 * remains the server-rendered fallback. The value seeds the scope at
+		 * mount, and a later `theme` prop update takes over. Only applies to
+		 * local scopes.
+		 */
+		prepaint?: ThemeScopePrePaint;
 		children?: Snippet;
 		/** Additional attributes, such as `id`, `aria-*`, or event handlers, forwarded to a local wrapper. */
 		[attribute: string]: unknown;
@@ -71,6 +84,7 @@
 		class: className,
 		style,
 		cspNonce,
+		prepaint,
 		children,
 		...rest
 	}: ThemeScopeProps<Themes> = $props();
@@ -81,6 +95,8 @@
 	const depth = (parent?.depth ?? -1) + 1;
 	const initialMode = untrack(() => mode);
 	const isGlobal = initialMode === "global";
+	const initialTheme = untrack(() => theme);
+	const initialPrepaint = untrack(() => prepaint);
 
 	// Local scopes are transparent to the global forced-theme hierarchy, so
 	// descendants attach to the nearest global scope instead of this one.
@@ -97,6 +113,8 @@
 				'ThemeScope: `priority` and `overrideChildren` only apply to `mode="global"`; they are ignored here.',
 				themeManager,
 			);
+	} else if (initialPrepaint) {
+		logWarn('ThemeScope: `prepaint` only applies to `mode="local"`; it is ignored here.', themeManager);
 	}
 
 	let warnedModeChange = false;
@@ -108,10 +126,45 @@
 		logWarn("ThemeScope: `mode` is read when the scope mounts. Remount the component to change it.", themeManager);
 	});
 
-	const localTheme = $derived.by(() => {
-		if (theme === undefined) return undefined;
+	// `prepaint` lets a persisted local theme win over the server-rendered
+	// fallback. It is read once on mount; the boot script repeats that read
+	// before hydration so first paint and the hydrated tree agree.
+	const initialPrepaintTheme = untrack(() => {
+		if (!initialPrepaint || !BROWSER) return undefined;
 
-		if (theme === "system") {
+		try {
+			const storage = initialPrepaint.storage === "localStorage" ? localStorage : sessionStorage;
+			return storage.getItem(initialPrepaint.key) ?? undefined;
+		} catch {
+			return undefined;
+		}
+	});
+
+	let prepaintTheme = $state<keyof Themes | "system" | undefined>(
+		initialPrepaintTheme === "system"
+			? "system"
+			: initialPrepaintTheme && Object.hasOwn(themeManager.themes, initialPrepaintTheme)
+				? (initialPrepaintTheme as keyof Themes)
+				: undefined,
+	);
+
+	const localThemeId = $derived(prepaintTheme ?? theme);
+
+	// `prepaint` seeds the scope. Once the consumer updates the `theme` prop, the
+	// prop takes over, so runtime theme switching keeps working.
+	let previousTheme = initialTheme;
+
+	$effect.pre(() => {
+		if (theme === previousTheme) return;
+
+		previousTheme = theme;
+		prepaintTheme = undefined;
+	});
+
+	const localTheme = $derived.by(() => {
+		if (localThemeId === undefined) return undefined;
+
+		if (localThemeId === "system") {
 			if (themeManager.systemThemes.kind === "enabled")
 				return themeManager.themes[
 					themeManager.systemThemes.mappings[themeManager.systemThemes.systemTheme ?? "light"]
@@ -120,12 +173,12 @@
 			return themeManager.themes[themeManager.resolvedTheme];
 		}
 
-		return Object.hasOwn(themeManager.themes, theme) ? themeManager.themes[theme] : undefined;
+		return Object.hasOwn(themeManager.themes, localThemeId) ? themeManager.themes[localThemeId] : undefined;
 	});
 
 	const localResolvedUseSystemTheme = $derived.by(() => {
 		if (!localTheme) return themeManager.resolvedUseSystemTheme;
-		if (theme !== "system") return false;
+		if (localThemeId !== "system") return false;
 
 		// With system themes disabled, the local scope follows the manager's
 		// resolved theme, so inherit the manager's system state as well.
@@ -175,20 +228,29 @@
 		return { id: theme.id, c: theme.className ?? theme.id, t: theme.type };
 	}
 
-	// A local `theme="system"` scope is not covered by the head boot script, which can
-	// only reach `<html>`. Serialize what a tiny inline script needs to align this
-	// wrapper with the OS preference before hydrate.
+	// Local scopes are outside the head boot script, which only reaches `<html>`.
+	// Serialize what a tiny inline script needs to align this wrapper before
+	// hydration, either from the OS preference or a persisted local theme.
 	const localBootScript = $derived.by(() => {
-		if (isGlobal || theme !== "system" || themeManager.systemThemes.kind !== "enabled") return undefined;
+		if (isGlobal || (!initialPrepaint && localThemeId !== "system")) return undefined;
 
-		const { mappings } = themeManager.systemThemes;
+		const mappings = themeManager.systemThemes.kind === "enabled" ? themeManager.systemThemes.mappings : undefined;
 
 		return safeSerializeArgument({
 			a: themeManager.attributes,
-			l: toBootTheme(mappings.light),
-			d: toBootTheme(mappings.dark),
+			l: toBootTheme(mappings?.light),
+			d: toBootTheme(mappings?.dark),
+			ts: themeManager.themeIds.map((id) => {
+				const theme = themeManager.themes[id];
+
+				return { id: theme.id, c: theme.className ?? theme.id, t: theme.type };
+			}),
 			ac: themeManager.themeIds.map((id) => themeManager.themes[id].className ?? id),
 			cs: themeManager.useColorScheme,
+			p: initialPrepaint ? { s: initialPrepaint.storage, k: initialPrepaint.key } : undefined,
+			// The server-rendered fallback is `system`, so an empty persisted
+			// value (or no persisted value at all) still resolves system here.
+			sys: localThemeId === "system",
 		});
 	});
 
@@ -239,7 +301,7 @@
 	{/if}
 </svelte:head>
 
-{#if !isGlobal && theme !== undefined}
+{#if !isGlobal && (localThemeId !== undefined || initialPrepaint !== undefined)}
 	<svelte:element this={as} {...rest} class={localClassName || undefined} style={localStyle} {...localAttributes}>
 		{@render children?.()}
 	</svelte:element>
@@ -247,20 +309,49 @@
 		<script nonce={cspNonce} data-sv-themes-boot={localBootScript}>
 			(() => {
 				const script = document.currentScript;
-				const wrapper = script?.previousElementSibling;
-				if (!script || !wrapper) return;
-				const config = JSON.parse(script.dataset.svThemesBoot ?? "null");
-				if (!config) return;
-				const theme = globalThis.matchMedia("(prefers-color-scheme: dark)").matches ? config.d : config.l;
-				if (!theme) return;
-				for (const attribute of config.a) {
-					if (attribute === "class") {
-						wrapper.classList.remove(...config.ac);
-						wrapper.classList.add(theme.c);
-					} else wrapper.setAttribute(attribute, theme.id);
+				if (!script) return;
+				try {
+					const wrapper = script.previousElementSibling;
+					if (!wrapper) return;
+					const config = JSON.parse(script.dataset.svThemesBoot ?? "null");
+					if (!config) return;
+					let themeId;
+					if (config.p) {
+						try {
+							themeId = globalThis[config.p.s].getItem(config.p.k) || undefined;
+						} catch {}
+					}
+					if (!themeId && config.sys) themeId = "system";
+					let theme;
+					if (themeId === "system") {
+						if (config.l) {
+							theme = globalThis.matchMedia("(prefers-color-scheme: dark)").matches ? config.d : config.l;
+						} else {
+							// System themes are disabled, so the resolved theme comes
+							// from the document-level boot script instead.
+							for (const attribute of config.a) {
+								if (attribute === "class") {
+									theme = config.ts.find((candidate) => document.documentElement.classList.contains(candidate.c));
+								} else {
+									const value = document.documentElement.getAttribute(attribute);
+									theme = value && config.ts.find((candidate) => candidate.id === value);
+								}
+
+								if (theme) break;
+							}
+						}
+					} else if (themeId) theme = config.ts.find((candidate) => candidate.id === themeId);
+					if (!theme) return;
+					for (const attribute of config.a) {
+						if (attribute === "class") {
+							wrapper.classList.remove(...config.ac);
+							wrapper.classList.add(theme.c);
+						} else wrapper.setAttribute(attribute, theme.id);
+					}
+					if (config.cs) wrapper.style.colorScheme = theme.t;
+				} finally {
+					script.remove();
 				}
-				if (config.cs) wrapper.style.colorScheme = theme.t;
-				script.remove();
 			})();
 		</script>
 	{/if}
