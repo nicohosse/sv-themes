@@ -523,7 +523,7 @@ describe("ThemeScope", () => {
 			}
 		});
 
-		it("only reads the persisted theme when the scope mounts", () => {
+		it("follows storage events for its key after mount", () => {
 			localStorage.setItem("scope-theme", "dark");
 
 			const container = document.createElement("div");
@@ -535,10 +535,71 @@ describe("ThemeScope", () => {
 				},
 			});
 
-			localStorage.setItem("scope-theme", "light");
 			flushSync();
 
 			expect((container.firstElementChild as HTMLElement).dataset.theme).toBe("dark");
+
+			localStorage.setItem("scope-theme", "light");
+			flushSync();
+
+			const wrapper = container.firstElementChild as HTMLElement;
+
+			expect(wrapper.dataset.theme).toBe("light");
+			expect(wrapper.classList.contains("light")).toBe(true);
+			expect(wrapper.classList.contains("dark")).toBe(false);
+
+			unmount(component);
+		});
+
+		it("ignores storage events for other keys and storage areas", () => {
+			localStorage.setItem("scope-theme", "dark");
+
+			const container = document.createElement("div");
+			const component = mount(ThemeScope, {
+				target: container,
+				props: {
+					theme: "light",
+					prepaint: { storage: "localStorage", key: "scope-theme" },
+				},
+			});
+
+			flushSync();
+
+			localStorage.setItem("other-theme", "light");
+			sessionStorage.setItem("scope-theme", "light");
+			flushSync();
+
+			expect((container.firstElementChild as HTMLElement).dataset.theme).toBe("dark");
+
+			unmount(component);
+		});
+
+		it("falls back to the server theme when the persisted theme is removed or invalid", () => {
+			localStorage.setItem("scope-theme", "dark");
+
+			const container = document.createElement("div");
+			const component = mount(ThemeScope, {
+				target: container,
+				props: {
+					theme: "light",
+					prepaint: { storage: "localStorage", key: "scope-theme" },
+				},
+			});
+
+			flushSync();
+
+			for (const update of [
+				() => localStorage.removeItem("scope-theme"),
+				() => localStorage.setItem("scope-theme", "unknown"),
+			]) {
+				localStorage.setItem("scope-theme", "dark");
+				flushSync();
+
+				update();
+				flushSync();
+
+				expect((container.firstElementChild as HTMLElement).dataset.theme).toBe("light");
+			}
 
 			unmount(component);
 		});
@@ -573,6 +634,12 @@ describe("ThemeScope", () => {
 
 			expect(wrapper()?.dataset.theme).toBe("sepia");
 			expect(container.querySelector("#prepaint-content")).not.toBeNull();
+
+			// The prop now owns the scope, so a later storage event is ignored.
+			localStorage.setItem("scope-theme", "light");
+			flushSync();
+
+			expect(wrapper()?.dataset.theme).toBe("sepia");
 
 			unmount(component);
 		});

@@ -507,7 +507,7 @@ Call `getThemeManager()` during component initialization, such as in `<script>`.
 
 `theme` also accepts `"system"`, which resolves through your configured system mappings and updates when the OS preference changes. When system themes are disabled, it follows the manager's current resolved theme.
 
-For a local theme persisted in browser storage, add `prepaint`. The scope reads the stored value once on mount and uses it instead of the server-rendered `theme`:
+For a local theme persisted in browser storage, add `prepaint`. The scope reads the stored value on mount, follows `storage` events, and uses it instead of the server-rendered `theme`:
 
 ```svelte
 <ThemeScope theme="light" prepaint={{ storage: "localStorage", key: "scoped-theme" }}>
@@ -518,7 +518,7 @@ For a local theme persisted in browser storage, add `prepaint`. The scope reads 
 > **⚠️ Note:**
 > A local `theme="system"` scope renders a tiny inline script directly after its wrapper, so the wrapper matches the OS preference before first paint and before hydration. A scope with `prepaint` renders the same script, which reads the persisted value and applies a registered theme id or `"system"` before hydration. The script is only emitted into server-rendered HTML; client-side mounts already resolve the theme before rendering. If you enforce a Content Security Policy, pass its nonce with `cspNonce` on the scope.
 >
-> `prepaint` only covers values that can be read synchronously from `localStorage` or `sessionStorage`. The stored value is the raw theme id or `"system"`, the same format the manager persists, so it can share the manager's storage key. A theme derived from other client-only state (an IndexedDB record, an in-memory store, or a value computed after hydration) cannot be known before paint. Resolve such themes from a cookie or another server-known source when the first paint must match. The persisted value is read once when the scope mounts; later changes to the storage key do not retheme it, and updating the `theme` prop takes over from the persisted value.
+> `prepaint` only covers values that can be read synchronously from `localStorage` or `sessionStorage`. The stored value is the raw theme id or `"system"`, the same format the manager persists, so it can share the manager's storage key. A theme derived from other client-only state (an IndexedDB record, an in-memory store, or a value computed after hydration) cannot be known before paint. Resolve such themes from a cookie or another server-known source when the first paint must match. The scope follows `storage` events, so a change made in another tab rethemes it. Browsers do not fire `storage` in the document that made the change; in the same tab, update the `theme` prop (which then owns the scope) or dispatch a `StorageEvent`.
 
 By default the wrapper uses `display: contents`, so it does not introduce a layout box. Use `as` and `class` to customize the wrapper, and `style` when you need a visible container:
 
@@ -572,7 +572,7 @@ Local and global scopes nest naturally. This forces the document to `dark` while
 | `class` | `string` | `undefined` | Local | Extra classes for the local wrapper. |
 | `style` | `string` | `undefined` | Local | Extra inline styles for the local wrapper. |
 | `cspNonce` | `string` | `undefined` | Local / SSR | CSP nonce for the local pre-paint script (`theme="system"` or `prepaint`). |
-| `prepaint` | `{ storage: "localStorage" \| "sessionStorage", key: string }` | `undefined` | Local | Reads a persisted theme id or `"system"` before first paint. The value seeds the scope at mount and a later `theme` prop update takes over; `theme` is the server-rendered fallback. |
+| `prepaint` | `{ storage: "localStorage" \| "sessionStorage", key: string }` | `undefined` | Local | Reads a persisted theme id or `"system"` before first paint. The value seeds the scope at mount, follows cross-tab `storage` events, and a later `theme` prop update takes over; `theme` is the server-rendered fallback. |
 
 `ThemeScope` keeps a runtime registry of mounted global scopes. Nested global scopes inherit their parent, and a parent with `overrideChildren` blocks every descendant request. Among unblocked requests, the highest `priority` wins; ties are resolved in favor of the scope declared later in document order. On the server the same tree is reconstructed from the rendered meta tags, so SSR and hydration agree.
 

@@ -66,8 +66,8 @@
 		 * Reads a persisted local theme from browser storage before first paint.
 		 * The stored value must be a registered theme id or `"system"`; `theme`
 		 * remains the server-rendered fallback. The value seeds the scope at
-		 * mount, and a later `theme` prop update takes over. Only applies to
-		 * local scopes.
+		 * mount, follows `storage` events from other tabs, and a later `theme`
+		 * prop update takes over. Only applies to local scopes.
 		 */
 		prepaint?: ThemeScopePrePaint;
 		children?: Snippet;
@@ -127,8 +127,9 @@
 	});
 
 	// `prepaint` lets a persisted local theme win over the server-rendered
-	// fallback. It is read once on mount; the boot script repeats that read
-	// before hydration so first paint and the hydrated tree agree.
+	// fallback. It seeds the scope on mount and follows later storage events; the
+	// boot script repeats the read before hydration so first paint and the
+	// hydrated tree agree.
 	const initialPrepaintTheme = untrack(() => {
 		if (!initialPrepaint || !BROWSER) return undefined;
 
@@ -140,15 +141,45 @@
 		}
 	});
 
-	let prepaintTheme = $state<keyof Themes | "system" | undefined>(
-		initialPrepaintTheme === "system"
-			? "system"
-			: initialPrepaintTheme && Object.hasOwn(themeManager.themes, initialPrepaintTheme)
-				? (initialPrepaintTheme as keyof Themes)
-				: undefined,
-	);
+	function resolvePrepaintTheme(value: string | undefined): keyof Themes | "system" | undefined {
+		if (value === "system") return "system";
+		if (value && Object.hasOwn(themeManager.themes, value)) return value as keyof Themes;
+
+		return undefined;
+	}
+
+	let prepaintTheme = $state<keyof Themes | "system" | undefined>(resolvePrepaintTheme(initialPrepaintTheme));
+	// The storage listener stays active until the consumer takes control through
+	// the `theme` prop.
+	let prepaintActive = $state(initialPrepaint !== undefined);
 
 	const localThemeId = $derived(prepaintTheme ?? theme);
+
+	// A `storage` event is fired in other documents that share this storage area,
+	// so another tab can retheme the scope without a prop update.
+	$effect(() => {
+		if (!BROWSER || !prepaintActive || !initialPrepaint) return;
+
+		const { key, storage: storageType } = initialPrepaint;
+		const storage = storageType === "localStorage" ? globalThis.localStorage : globalThis.sessionStorage;
+
+		const onStorage = (event: StorageEvent) => {
+			if (event.key !== null && event.key !== key) return;
+			// Some environments omit `storageArea`; the key check above is then the
+			// only filter available.
+			if (event.storageArea && !Object.is(event.storageArea, storage)) return;
+
+			try {
+				prepaintTheme = resolvePrepaintTheme(storage.getItem(key) ?? undefined);
+			} catch {
+				prepaintTheme = undefined;
+			}
+		};
+
+		globalThis.addEventListener("storage", onStorage);
+
+		return () => globalThis.removeEventListener("storage", onStorage);
+	});
 
 	// `prepaint` seeds the scope. Once the consumer updates the `theme` prop, the
 	// prop takes over, so runtime theme switching keeps working.
@@ -159,6 +190,7 @@
 
 		previousTheme = theme;
 		prepaintTheme = undefined;
+		prepaintActive = false;
 	});
 
 	const localTheme = $derived.by(() => {
