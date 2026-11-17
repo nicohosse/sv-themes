@@ -1,4 +1,3 @@
-import "@testing-library/jest-dom/vitest";
 import { format } from "@vitest/pretty-format";
 import type { Result } from "neverthrow";
 import { afterEach, expect, vi } from "vitest";
@@ -162,7 +161,7 @@ interface CustomMatchers<R = unknown> {
 }
 
 declare module "vitest" {
-	interface Assertion<T> extends CustomMatchers<T> {}
+	interface Assertion<R extends void | Promise<void> = void, T = unknown> extends CustomMatchers<T> {}
 	interface AsymmetricMatchersContaining extends CustomMatchers {}
 }
 

@@ -28,7 +28,7 @@
 		</div>
 
 		<div class="cancel-actions">
-			<div class="segmented" role="group" aria-label="Cancellation stage">
+			<fieldset class="segmented" aria-label="Cancellation stage">
 				{#each stages as stage (stage)}
 					<button
 						class="btn btn-sm"
@@ -40,7 +40,7 @@
 						{stage}
 					</button>
 				{/each}
-			</div>
+			</fieldset>
 
 			<button
 				class="btn btn-sm arm"
@@ -141,7 +141,9 @@
 	.segmented {
 		display: inline-flex;
 		gap: 2px;
+		min-width: 0;
 		padding: 2px;
+		margin: 0;
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
 		background: var(--surface-sunken);

@@ -30,7 +30,7 @@
 		<span class="meta">OS {rawSystemTheme}</span>
 	</div>
 
-	<div class="picker-options" role="group" aria-label="Theme preference">
+	<fieldset class="picker-options" aria-label="Theme preference">
 		{#each themeManager.themeIds as themeId (themeId)}
 			<button
 				class="option"
@@ -71,7 +71,7 @@
 			<span class="option-name">System</span>
 			<span class="option-type">follows OS</span>
 		</button>
-	</div>
+	</fieldset>
 
 	<div class="picker-meta">
 		<span>selected <b>{themeManager.selectedTheme}</b></span>
@@ -156,6 +156,10 @@
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 8px;
+		min-width: 0;
+		padding: 0;
+		margin: 0;
+		border: 0;
 	}
 
 	.option {

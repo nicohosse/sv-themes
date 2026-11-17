@@ -90,7 +90,7 @@ describe("validateSystemTheme", () => {
 		expect(result).toBeErr(ThemeManagerError.systemThemeUnassigned("light"));
 	});
 
-	it("returns Err SystemThemeUnassigned when the mapped theme doesnt exist", () => {
+	it("returns Err SystemThemeUnassigned when the mapped theme id is unknown", () => {
 		const config = {
 			...createMockThemeManagerConfig(
 				{

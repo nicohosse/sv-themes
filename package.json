@@ -27,16 +27,16 @@
 		"node": ">=22.17"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.4.13",
-		"@changesets/cli": "2.31.0",
-		"@socketsecurity/bun-security-scanner": "1.1.2",
-		"@types/node": "25.6.0",
-		"lefthook": "2.1.6",
-		"prettier": "3.8.3",
-		"stylelint": "17.9.1",
+		"@biomejs/biome": "2.6.7",
+		"@changesets/cli": "3.0.3",
+		"@socketsecurity/bun-security-scanner": "1.1.3",
+		"@types/node": "26.6.6",
+		"lefthook": "2.2.2",
+		"prettier": "3.10.1",
+		"stylelint": "18.0.0",
 		"stylelint-config-idiomatic-order": "10.0.0",
-		"stylelint-config-standard-scss": "17.0.0",
-		"stylelint-scss": "7.0.0"
+		"stylelint-config-standard-scss": "18.0.0",
+		"stylelint-scss": "7.5.0"
 	},
 	"trustedDependencies": [
 		"@parcel/watcher",
