@@ -364,6 +364,7 @@ describe("ThemeScope", () => {
 			expect(wrapper?.classList.contains("dark")).toBe(true);
 			expect(wrapper?.classList.contains("light")).toBe(false);
 			expect(wrapper?.style.colorScheme).toBe("dark");
+			expect(container.querySelector("script[data-sv-themes-boot]")).toBeNull();
 
 			unmount(component);
 		});

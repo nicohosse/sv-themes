@@ -260,6 +260,7 @@
 					} else wrapper.setAttribute(attribute, theme.id);
 				}
 				if (config.cs) wrapper.style.colorScheme = theme.t;
+				script.remove();
 			})();
 		</script>
 	{/if}
