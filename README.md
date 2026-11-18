@@ -6,19 +6,35 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Coverage Status](https://img.shields.io/badge/Coverage-95%25-green.svg)](https://github.com/nicohosse/sv-themes)
 
+🚀 **[Live Demo](https://nicohosse.github.io/sv-themes/)**
+
 A type-safe theme management library designed for **Svelte 5** and **SvelteKit 3**. Rather than basic class toggling, `sv-themes` coordinates states across the SvelteKit server lifecycle and Svelte 5 client-side components to resolve common theme challenges like handling system preferences, storage fallbacks, cross-tab syncing, and scoped theme overrides without hydration mismatches or layout flickers.
 
 ## Features
 
-- **SSR-Safe:** Resolves each request into an isolated snapshot, preventing persisted themes from leaking between concurrent requests. An inline head bootloader prevents initial light/dark flashes (FOUC).
-- **Svelte 5 Runes:** Built natively with Svelte 5 runes.
-- **SPA & SSR Friendly:** Works in SvelteKit with the provided handle, or in client-only Svelte apps by inlining the exported boot script.
-- **Scoped Theme Overrides:** Declare forced themes in nested routes with depth-aware priority matching, child locks, and automated unmount cleanup.
-- **Locally Scoped Themes:** Apply a theme to a component subtree without changing the document root, persistence, or global overrides.
-- **Tab Synchronization:** Listens to global storage events to instantly align multiple open browser tabs.
-- **Robust Persistence:** Coordinates fallback strategies across cookies, `localStorage`, and `sessionStorage`, with synchronous initialization reads.
-- **Favicons & Colors:** Updates `<meta name="theme-color">` and per-theme favicons, preserving alpha channel colors.
-- **Comprehensive Testing:** Over 95% test coverage, covering all error paths and edge cases.
+### 🧱 SSR-Safe by Design
+
+- **Request-isolated state.** Every request resolves into its own theme snapshot, so a persisted theme can never leak between concurrent users. Use a shared manager or a per-request factory; `createThemeHandle` never mutates the shared instance.
+- **No first-paint flash.** A tiny inline bootloader in `<head>` applies the resolved theme before the browser paints, eliminating FOUC in SSR apps.
+- **CSP-compatible.** Pass a nonce to the bootloader through `event.locals.svThemesScriptNonce`, `createThemeHandle(manager, nonce)`, or the `cspNonce` prop on local scopes.
+- **Works without SvelteKit.** Client-only apps can inline the same boot script with `getThemeScript` from `sv-themes/spa`; synchronous storage reads make the reactive state match the already-applied theme.
+
+### 🎨 Theme Control
+
+- **Scoped themes.** `<ThemeScope theme="dark">` restyles a subtree without touching the document root, persistence, or events. Add `prepaint` to restore a per-widget theme from storage before paint and follow other tabs.
+- **Global overrides with hierarchy.** `mode="global"` forces a theme for a layout or route with priority resolution, `overrideChildren` locks, and automatic cleanup on unmount. Nested scopes coexist, and SSR and hydration agree.
+- **Follow the OS, map any theme.** Track `prefers-color-scheme` and map light/dark to any registered theme, not just the first pair, with a reactive `systemTheme` and typed `systemChange` events.
+- **Cross-tab sync.** A `storage` listener keeps every open tab aligned in real time.
+- **Layered persistence.** Coordinate cookies, `localStorage`, and `sessionStorage` with configurable keys and synchronous initialization reads.
+
+### 🧑‍💻 Developer Experience
+
+- **Runes-native and type-safe.** `createThemes` infers your theme IDs, `ThemesOf<typeof themeManager>` extracts them, and every method and event is typed against your theme record. Reactive state is built on Svelte 5 runes, not stores.
+- **Cancellable lifecycle events.** `beforeChange`, `select`, `afterChange`, `systemChange`, `forced`, and `unforced` hooks let you cancel transitions, animate changes, or track analytics.
+- **Browser chrome handled.** `<meta name="theme-color">`, `<meta name="color-scheme">`, and per-theme favicons stay in sync; colors support `var()`, `oklch()`, and alpha-preserving 8-digit hex.
+- **Accessible selector attachment.** `{@attach themeSelector({ theme: "dark" })}` wires clicks and reactive `aria-pressed` state to any button.
+- **Defensive runtime validation.** Typed errors catch duplicate or reserved IDs, missing system mappings, locked overrides, and incompatible tab-sync storage instead of failing silently.
+- **95%+ test coverage** across SSR, hydration, scopes, persistence fallbacks, and error paths.
 
 ---
 
