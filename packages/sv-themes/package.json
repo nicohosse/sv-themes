@@ -1,7 +1,7 @@
 {
 	"name": "sv-themes",
 	"description": "SSR-safe theme management for Svelte 5 and SvelteKit 3: request-isolated state, flash-free first paint, local and global theme scopes, OS preference mapping, cross-tab sync, and fully typed APIs.",
-	"version": "0.9.4",
+	"version": "1.0.0",
 	"author": "Nico Hosse <https://github.com/nicohosse>",
 	"license": "MIT",
 	"type": "module",
