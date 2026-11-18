@@ -15,6 +15,7 @@ export default defineConfig({
 	],
 	test: {
 		environment: "jsdom",
+		pool: "vmThreads",
 		restoreMocks: true,
 		clearMocks: true,
 		mockReset: true,
