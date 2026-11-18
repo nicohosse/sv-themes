@@ -4,8 +4,8 @@
 	import { getThemeManager, setScopedThemeManager } from "#lib/contexts/themeManagerContext.svelte.js";
 	import { getThemeScopeContext, setThemeScopeContext } from "#lib/contexts/themeScopeContext.svelte.js";
 	import { logWarn } from "#lib/core/logger.js";
-	import { safeSerializeArgument } from "#lib/core/script.js";
-	import type { ThemeRecord } from "#lib/core/theme/theme.js";
+	import { getThemeScopeScript, type ThemeScopeScriptTheme } from "#lib/core/script.js";
+	import type { Theme, ThemeRecord } from "#lib/core/theme/theme.js";
 	import { INTERNAL as THEME_MANAGER_INTERNAL } from "#lib/core/themeManager/themeManager.js";
 
 	/** Tags that can safely wrap children; void and document-level tags are excluded. */
@@ -250,14 +250,8 @@
 		return styles.join(" ");
 	});
 
-	function toBootTheme(themeId: keyof Themes | undefined) {
-		if (!themeId) return null;
-
-		const theme = themeManager.themes[themeId];
-
-		if (!theme) return null;
-
-		return { id: theme.id, c: theme.className ?? theme.id, t: theme.type };
+	function toScriptTheme(theme: Theme): ThemeScopeScriptTheme {
+		return { id: theme.id, className: theme.className, type: theme.type };
 	}
 
 	// Local scopes are outside the head boot script, which only reaches `<html>`.
@@ -268,21 +262,17 @@
 
 		const mappings = themeManager.systemThemes.kind === "enabled" ? themeManager.systemThemes.mappings : undefined;
 
-		return safeSerializeArgument({
-			a: themeManager.attributes,
-			l: toBootTheme(mappings?.light),
-			d: toBootTheme(mappings?.dark),
-			ts: themeManager.themeIds.map((id) => {
-				const theme = themeManager.themes[id];
-
-				return { id: theme.id, c: theme.className ?? theme.id, t: theme.type };
-			}),
-			ac: themeManager.themeIds.map((id) => themeManager.themes[id].className ?? id),
-			cs: themeManager.useColorScheme,
-			p: initialPrepaint ? { s: initialPrepaint.storage, k: initialPrepaint.key } : undefined,
+		return getThemeScopeScript({
+			attributes: themeManager.attributes,
+			light: mappings ? toScriptTheme(themeManager.themes[mappings.light]) : undefined,
+			dark: mappings ? toScriptTheme(themeManager.themes[mappings.dark]) : undefined,
+			themes: Object.values(themeManager.themes).map(toScriptTheme),
+			themeClasses: Object.values(themeManager.themes).map((theme) => theme.className ?? theme.id),
+			useColorScheme: themeManager.useColorScheme,
+			storage: initialPrepaint ? { method: initialPrepaint.storage, key: initialPrepaint.key } : undefined,
 			// The server-rendered fallback is `system`, so an empty persisted
 			// value (or no persisted value at all) still resolves system here.
-			sys: localThemeId === "system",
+			resolveSystem: localThemeId === "system",
 		});
 	});
 
@@ -337,55 +327,9 @@
 	<svelte:element this={as} {...rest} class={localClassName || undefined} style={localStyle} {...localAttributes}>
 		{@render children?.()}
 	</svelte:element>
-	{#if !BROWSER && localBootScript !== undefined}
-		<script nonce={cspNonce} data-sv-themes-boot={localBootScript}>
-			(() => {
-				const script = document.currentScript;
-				if (!script) return;
-				try {
-					const wrapper = script.previousElementSibling;
-					if (!wrapper) return;
-					const config = JSON.parse(script.dataset.svThemesBoot ?? "null");
-					if (!config) return;
-					let themeId;
-					if (config.p) {
-						try {
-							themeId = globalThis[config.p.s].getItem(config.p.k) || undefined;
-						} catch {}
-					}
-					if (!themeId && config.sys) themeId = "system";
-					let theme;
-					if (themeId === "system") {
-						if (config.l) {
-							theme = globalThis.matchMedia("(prefers-color-scheme: dark)").matches ? config.d : config.l;
-						} else {
-							// System themes are disabled, so the resolved theme comes
-							// from the document-level boot script instead.
-							for (const attribute of config.a) {
-								if (attribute === "class") {
-									theme = config.ts.find((candidate) => document.documentElement.classList.contains(candidate.c));
-								} else {
-									const value = document.documentElement.getAttribute(attribute);
-									theme = value && config.ts.find((candidate) => candidate.id === value);
-								}
 
-								if (theme) break;
-							}
-						}
-					} else if (themeId) theme = config.ts.find((candidate) => candidate.id === themeId);
-					if (!theme) return;
-					for (const attribute of config.a) {
-						if (attribute === "class") {
-							wrapper.classList.remove(...config.ac);
-							wrapper.classList.add(theme.c);
-						} else wrapper.setAttribute(attribute, theme.id);
-					}
-					if (config.cs) wrapper.style.colorScheme = theme.t;
-				} finally {
-					script.remove();
-				}
-			})();
-		</script>
+	{#if !BROWSER && localBootScript !== undefined}
+		<svelte:element this={"script"} nonce={cspNonce} data-sv-themes-boot>{@html localBootScript}</svelte:element>
 	{/if}
 {:else}
 	{@render children?.()}

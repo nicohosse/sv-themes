@@ -2,7 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 import { createThemes, DEFAULT_THEMES } from "#lib/index.js";
 import { testEnv } from "#lib/tests/testEnvironment.js";
 import { setCookie } from "#lib/utils/cookie.js";
-import { getThemeScript, safeSerializeArgument, type ThemeScriptArguments, themeScript } from "./script.js";
+import {
+	getThemeScopeScript,
+	getThemeScript,
+	safeSerializeArgument,
+	type ThemeScopeScriptArguments,
+	type ThemeScopeScriptTheme,
+	type ThemeScriptArguments,
+	themeScopeScript,
+	themeScript,
+} from "./script.js";
 import { STORAGE_METHOD_PRIORITY, type SystemThemes } from "./themeManager/index.js";
 
 describe("themeScript", () => {
@@ -593,6 +602,125 @@ describe("themeScript", () => {
 	});
 });
 
+describe("themeScopeScript", () => {
+	const themes: ThemeScopeScriptTheme[] = [
+		{ id: "light", type: "light" },
+		{ id: "dark", type: "dark" },
+	];
+
+	const config: ThemeScopeScriptArguments = {
+		attributes: ["class", "data-theme"],
+		themes,
+		themeClasses: ["light", "dark"],
+		useColorScheme: true,
+		resolveSystem: false,
+	};
+
+	function runScopeScript(scriptConfig: ThemeScopeScriptArguments, prepareWrapper?: (wrapper: HTMLElement) => void) {
+		const container = document.createElement("div");
+		const wrapper = document.createElement("div");
+		const script = document.createElement("script");
+
+		prepareWrapper?.(wrapper);
+		container.append(wrapper, script);
+		document.body.append(container);
+
+		vi.spyOn(document, "currentScript", "get").mockReturnValue(script);
+		themeScopeScript(scriptConfig);
+
+		container.remove();
+
+		return { wrapper, script };
+	}
+
+	it("applies a persisted theme to the wrapper and removes the script", () => {
+		localStorage.setItem("scope-theme", "dark");
+
+		const { wrapper, script } = runScopeScript(
+			{ ...config, storage: { method: "localStorage", key: "scope-theme" } },
+			(element) => {
+				element.className = "light";
+				element.dataset.theme = "light";
+				element.style.colorScheme = "light";
+			},
+		);
+
+		expect(wrapper.classList.contains("dark")).toBe(true);
+		expect(wrapper.classList.contains("light")).toBe(false);
+		expect(wrapper.dataset.theme).toBe("dark");
+		expect(wrapper.style.colorScheme).toBe("dark");
+		expect(script.parentNode).toBeNull();
+	});
+
+	it("uses the configured theme class name", () => {
+		localStorage.setItem("scope-theme", "nature");
+
+		const { wrapper } = runScopeScript(
+			{
+				...config,
+				themes: [{ id: "nature", className: "theme-nature", type: "light" }],
+				themeClasses: ["theme-nature"],
+				storage: { method: "localStorage", key: "scope-theme" },
+			},
+			(element) => (element.className = "theme-nature"),
+		);
+
+		expect(wrapper.classList.contains("theme-nature")).toBe(true);
+		expect(wrapper.classList.contains("nature")).toBe(false);
+		expect(wrapper.dataset.theme).toBe("nature");
+	});
+
+	it("resolves the OS preference when the scope follows the system theme", () => {
+		testEnv().systemTheme("dark").apply();
+
+		const { wrapper } = runScopeScript({
+			...config,
+			light: themes[0],
+			dark: themes[1],
+			resolveSystem: true,
+		});
+
+		expect(wrapper.dataset.theme).toBe("dark");
+		expect(wrapper.classList.contains("dark")).toBe(true);
+		expect(wrapper.style.colorScheme).toBe("dark");
+	});
+
+	it("falls back to the document theme when system themes are disabled", () => {
+		document.documentElement.dataset.theme = "dark";
+
+		const { wrapper } = runScopeScript({ ...config, resolveSystem: true });
+
+		expect(wrapper.dataset.theme).toBe("dark");
+		expect(wrapper.classList.contains("dark")).toBe(true);
+	});
+
+	it("follows the document theme resolved through a theme class", () => {
+		document.documentElement.classList.add("dark");
+
+		const { wrapper } = runScopeScript({ ...config, attributes: ["class"], resolveSystem: true });
+
+		expect(wrapper.classList.contains("dark")).toBe(true);
+		expect(wrapper.classList.contains("light")).toBe(false);
+	});
+
+	it("leaves the server-rendered wrapper untouched for an unknown persisted theme", () => {
+		localStorage.setItem("scope-theme", "missing");
+
+		const { wrapper, script } = runScopeScript(
+			{ ...config, storage: { method: "localStorage", key: "scope-theme" }, resolveSystem: true },
+			(element) => {
+				element.className = "light";
+				element.dataset.theme = "light";
+				element.style.colorScheme = "light";
+			},
+		);
+
+		expect(wrapper.dataset.theme).toBe("light");
+		expect(wrapper.style.colorScheme).toBe("light");
+		expect(script.parentNode).toBeNull();
+	});
+});
+
 describe("getThemeScript", () => {
 	const config: ThemeScriptArguments = {
 		themes: { light: { id: "light", type: "light" } },
@@ -648,6 +776,48 @@ describe("getThemeScript", () => {
 		const parts = script.split(",");
 
 		expect(parts[parts.length - 7]).toBe("undefined");
+	});
+});
+
+describe("getThemeScopeScript", () => {
+	const config: ThemeScopeScriptArguments = {
+		attributes: ["class", "data-theme"],
+		light: { id: "light", type: "light" },
+		dark: { id: "dark", type: "dark" },
+		themes: [
+			{ id: "light", type: "light" },
+			{ id: "dark", type: "dark" },
+		],
+		themeClasses: ["light", "dark"],
+		useColorScheme: true,
+		storage: { method: "localStorage", key: "theme" },
+		resolveSystem: false,
+	};
+
+	it("serializes the scope configuration", () => {
+		expect(getThemeScopeScript(config)).toContain(`(${safeSerializeArgument(config)})`);
+	});
+
+	it("removes minification name wrappers from the function string", () => {
+		const originalToString = Function.prototype.toString;
+
+		vi.spyOn(Function.prototype, "toString").mockImplementation(function (this: (...args: never[]) => unknown) {
+			return this === themeScopeScript
+				? 'function themeScopeScript() { __name(themeScopeScript, "themeScopeScript"); }'
+				: originalToString.call(this);
+		});
+
+		expect(getThemeScopeScript(config)).not.toContain("__name");
+	});
+
+	it("escapes HTML-significant characters in the serialized configuration", () => {
+		const script = getThemeScopeScript({
+			...config,
+			storage: { method: "localStorage", key: "</script>" },
+		});
+
+		expect(script).not.toContain("</script>");
+		expect(script).toContain("\\u003c/script>");
 	});
 });
 

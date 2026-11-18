@@ -1,4 +1,4 @@
-import type { ThemeRecord } from "./theme/theme.js";
+import type { ThemeRecord, ThemeType } from "./theme/theme.js";
 import {
 	STORAGE_METHOD_PRIORITY,
 	type StorageMethod,
@@ -24,6 +24,34 @@ export type ThemeScriptArguments<Themes extends ThemeRecord = ThemeRecord> = Pic
 	| "attributes"
 > &
 	Partial<Pick<ThemeManager<Themes>, "useColorScheme" | "useThemeColor" | "useFavicon">>;
+
+/** The subset of a theme the local scope boot script needs. */
+export interface ThemeScopeScriptTheme {
+	id: string;
+	className?: string;
+	type: ThemeType;
+}
+
+export interface ThemeScopeScriptArguments {
+	/** Attributes written to the scope wrapper. */
+	attributes: ThemeAttribute[];
+	/** Themes mapped to the light and dark OS preferences, when system themes are enabled. */
+	light?: ThemeScopeScriptTheme;
+	dark?: ThemeScopeScriptTheme;
+	/** Every registered theme, used to resolve a persisted id or the document theme. */
+	themes: ThemeScopeScriptTheme[];
+	/** Every registered theme class name, used to clear stale wrapper classes. */
+	themeClasses: string[];
+	/** Whether the resolved theme type is written to `color-scheme`. */
+	useColorScheme?: boolean;
+	/** Persisted theme source read before hydration. */
+	storage?: {
+		method: "localStorage" | "sessionStorage";
+		key: string;
+	};
+	/** Whether the scope follows the system theme, so the OS or document theme decides. */
+	resolveSystem: boolean;
+}
 
 export function themeScript<const Themes extends ThemeRecord>(
 	themes: Themes,
@@ -247,6 +275,68 @@ export function themeScript<const Themes extends ThemeRecord>(
 	if (document.currentScript) document.currentScript.remove();
 }
 
+/**
+ * Bootstraps a local `ThemeScope` wrapper before hydration.
+ *
+ * This function is serialized with `toString()`, so it must stay self-contained.
+ * Use `getThemeScopeScript` to generate the inline script.
+ */
+export function themeScopeScript(config: ThemeScopeScriptArguments) {
+	const script = document.currentScript;
+	const wrapper = script?.previousElementSibling;
+
+	if (!script || !wrapper) return;
+
+	try {
+		let themeId: string | undefined;
+
+		if (config.storage) {
+			try {
+				themeId = globalThis[config.storage.method].getItem(config.storage.key) || undefined;
+			} catch {}
+		}
+
+		if (!themeId && config.resolveSystem) themeId = "system";
+
+		let theme: ThemeScopeScriptTheme | undefined;
+
+		if (themeId === "system") {
+			if (config.light) {
+				theme = globalThis.matchMedia("(prefers-color-scheme: dark)").matches ? config.dark : config.light;
+			} else {
+				// System themes are disabled, so the resolved theme comes from the
+				// document-level boot script instead.
+				for (const attribute of config.attributes) {
+					if (attribute === "class") {
+						theme = config.themes.find((candidate) =>
+							document.documentElement.classList.contains(candidate.className ?? candidate.id),
+						);
+					} else {
+						const value = document.documentElement.getAttribute(attribute);
+
+						theme = value ? config.themes.find((candidate) => candidate.id === value) : undefined;
+					}
+
+					if (theme) break;
+				}
+			}
+		} else if (themeId) theme = config.themes.find((candidate) => candidate.id === themeId);
+
+		if (!theme) return;
+
+		for (const attribute of config.attributes) {
+			if (attribute === "class") {
+				wrapper.classList.remove(...config.themeClasses);
+				wrapper.classList.add(theme.className ?? theme.id);
+			} else wrapper.setAttribute(attribute, theme.id);
+		}
+
+		if (config.useColorScheme) (wrapper as HTMLElement).style.colorScheme = theme.type;
+	} finally {
+		script.remove();
+	}
+}
+
 const NAME_MINIFICATION_REGEX = /\s*__name\([^;]*\);?/g;
 
 export function getThemeScript<const Themes extends ThemeRecord>(config: Readonly<ThemeScriptArguments<Themes>>) {
@@ -273,6 +363,12 @@ export function getThemeScript<const Themes extends ThemeRecord>(config: Readonl
 		.join(",");
 
 	return `(${fn})(${args})`;
+}
+
+export function getThemeScopeScript(config: Readonly<ThemeScopeScriptArguments>) {
+	const fn = themeScopeScript.toString().replace(NAME_MINIFICATION_REGEX, "");
+
+	return `(${fn})(${safeSerializeArgument(config)})`;
 }
 
 export function safeSerializeArgument(argument: unknown): string {
