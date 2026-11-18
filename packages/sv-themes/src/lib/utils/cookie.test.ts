@@ -175,11 +175,7 @@ describe("getCookie", () => {
 	it("ignores malformed cookie entries", async () => {
 		testEnv().cookieStore(false).apply();
 
-		Object.defineProperty(document, "cookie", {
-			configurable: true,
-			get: () => "valid=value; malformed; another=test",
-			set: vi.fn(),
-		});
+		vi.spyOn(document, "cookie", "get").mockReturnValue("valid=value; malformed; another=test");
 
 		expect(await getCookie("another")).toBe("test");
 	});
