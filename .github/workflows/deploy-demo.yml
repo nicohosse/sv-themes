@@ -29,8 +29,8 @@ jobs:
       - name: Install Dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build Demo
-        run: bun run build:apps
+      - name: Build Packages and Demo
+        run: bun run build
         env:
           # GitHub Pages serves project sites from /<repo>/
           BASE_PATH: /${{ github.event.repository.name }}
