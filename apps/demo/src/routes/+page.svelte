@@ -7,6 +7,7 @@
 	import ThemePicker from "#lib/components/ThemePicker.svelte";
 	import { themeFeedback } from "#lib/themeFeedback.svelte.js";
 	import { themeManager } from "#lib/themeManager.svelte.js";
+	import { resolve } from "$app/paths";
 
 	const repoUrl = "https://github.com/nicohosse/sv-themes";
 	const npmUrl = "https://www.npmjs.com/package/sv-themes";
@@ -18,7 +19,7 @@
 
 <header class="site-header">
 	<div class="wrap header-inner">
-		<a class="brand" href="/" aria-label="sv-themes home">
+		<a class="brand" href={resolve("/")} aria-label="sv-themes home">
 			<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
 				<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"></circle>
 				<path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"></path>

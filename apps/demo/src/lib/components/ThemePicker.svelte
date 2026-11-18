@@ -2,6 +2,7 @@
 	import { type ThemeManagerError, themeSelector } from "sv-themes";
 	import { themeFeedback } from "#lib/themeFeedback.svelte.js";
 	import { themeManager } from "#lib/themeManager.svelte.js";
+	import { resolve } from "$app/paths";
 
 	const activeTheme = $derived(themeManager.themes[themeManager.resolvedTheme]);
 
@@ -83,8 +84,9 @@
 	</div>
 
 	<p class="picker-note">
-		Saved to a cookie and localStorage. <a href="/" target="_blank" rel="noreferrer">Open a second tab</a> and switch
-		themes there to watch the storage event sync this one.
+		Saved to a cookie and localStorage.
+		<a href={resolve("/")} target="_blank" rel="noreferrer">Open a second tab</a>
+		and switch themes there to watch the storage event sync this one.
 	</p>
 </section>
 
