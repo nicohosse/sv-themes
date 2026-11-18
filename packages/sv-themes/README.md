@@ -125,9 +125,6 @@ export type ThemeRecord<Keys extends string = string> = Record<Keys, Readonly<Th
 > **📝 Note:**
 > **Looking for an example?** You can find a fully configured SvelteKit implementation in the [apps/demo](https://github.com/nicohosse/sv-themes/tree/main/apps/demo) directory of the repository.
 
-> **📝 Note:**
-> **SvelteKit 3 imports:** SvelteKit 3 replaces the `$lib` alias with Node subpath imports. Declare `#lib` in your `package.json` (`"#lib": "./src/lib/index.js"`, `"#lib/*": "./src/lib/*"`) and include explicit extensions in imports, for example `#lib/themeManager.svelte.js`. All examples below follow that convention.
-
 ### 1. Create Theme Manager (`src/lib/themeManager.svelte.ts`)
 Set up your canonical theme configurations and instantiate the manager.
 
