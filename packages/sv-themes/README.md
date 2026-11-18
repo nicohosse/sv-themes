@@ -1,6 +1,6 @@
 # 🌗 sv-themes
 
-**SSR-safe Svelte 5 theme management library with advanced features like tab sync, FOUC prevention, scoped overrides, and more.**
+**SSR-safe theme management for Svelte 5 and SvelteKit 3: request-isolated state, flash-free first paint, local and global theme scopes, OS preference mapping, cross-tab sync, and fully typed APIs.**
 
 [![NPM](https://img.shields.io/npm/v/sv-themes?color=ff3e00&label=npm)](https://www.npmjs.com/package/sv-themes)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
