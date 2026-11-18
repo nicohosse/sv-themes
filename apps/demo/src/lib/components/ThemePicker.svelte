@@ -35,7 +35,7 @@
 			<button
 				class="option"
 				type="button"
-				use:themeSelector={{ theme: themeId, onError: reportError }}
+				{@attach themeSelector({ theme: themeId, onError: reportError })}
 				aria-pressed={!themeManager.useSystemTheme && themeManager.selectedTheme === themeId}
 				style={`--swatch: ${themeManager.themes[themeId].color ?? "var(--accent)"};`}
 			>
@@ -48,7 +48,7 @@
 		<button
 			class="option"
 			type="button"
-			use:themeSelector={{ theme: "system", onError: reportError }}
+			{@attach themeSelector({ theme: "system", onError: reportError })}
 			aria-pressed={themeManager.useSystemTheme}
 		>
 			<svg

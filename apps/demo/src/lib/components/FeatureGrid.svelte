@@ -55,7 +55,7 @@
 		},
 		{
 			icon: "git-branch",
-			title: "Context-aware actions",
+			title: "Context-aware attachments",
 			copy: "themeSelector and the components resolve the manager from Svelte context. Registration collisions return a typed error.",
 		},
 		{

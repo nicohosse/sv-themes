@@ -34,7 +34,7 @@
 	class="theme-card"
 	type="button"
 	class:is-resolved={themeManager.resolvedTheme === themeId}
-	use:themeSelector={{ theme: themeId, onError: reportError }}
+	{@attach themeSelector({ theme: themeId, onError: reportError })}
 	aria-pressed={!themeManager.useSystemTheme && themeManager.selectedTheme === themeId}
 	style={`--preview-bg: ${preview.background}; --preview-fg: ${preview.foreground}; --preview-accent: ${preview.accent}; --preview-on-accent: ${preview.onAccent};`}
 >

@@ -221,9 +221,9 @@ Update your Svelte state directly.
 <p>Theme: {themeManager.resolvedTheme}</p>
 ```
 
-### 5. Svelte Actions
+### 5. Svelte Attachments
 
-Quickly bind elements to theme events with built-in accessibility (ARIA) attributes:
+Bind elements to theme events with built-in accessibility (ARIA) attributes using the `themeSelector` attachment. Attachments run on the client when the element mounts, and re-run whenever their reactive parameters change:
 
 ```svelte
 <script lang="ts">
@@ -231,15 +231,15 @@ Quickly bind elements to theme events with built-in accessibility (ARIA) attribu
 	import { themeManager } from "#lib/themeManager.svelte.js";
 </script>
 
-<button use:themeSelector={{ theme: "dark" }}>
+<button {@attach themeSelector({ theme: "dark" })}>
 	Dark
 </button>
 
-<button use:themeSelector={{ themeManager /* For type-safe themes */, theme: "dark" }}>
+<button {@attach themeSelector({ themeManager /* For type-safe themes */, theme: "dark" })}>
 	Dark
 </button>
 
-<button use:themeSelector={{ theme: "system", onError: (error: ThemeManagerError) => { /* Handle error */ } }}>
+<button {@attach themeSelector({ theme: "system", onError: (error: ThemeManagerError) => { /* Handle error */ } })}>
 	System
 </button>
 ```
@@ -501,7 +501,7 @@ Use `theme` to apply a theme to a component subtree without changing the documen
 
 The scope renders a wrapper element carrying the same attributes your manager would apply to `<html>` (`class`, `data-theme`, and any custom attributes), plus `color-scheme` when `useColorScheme` is enabled. It does **not** mutate `selectedTheme`, the manager's forced state, storage, lifecycle events, the global forced-theme registry, `<meta name="theme-color">`, or the favicon.
 
-Components mounted inside the scope resolve `getThemeManager().resolvedTheme` to the local theme, so theme-dependent logic matches the surrounding CSS. Everything else stays global: `selectedTheme`, `forcedTheme`, `useSystemTheme`, manager methods, and lifecycle events. Manager methods and the `themeSelector` action therefore still act on the document even when they are used inside a local scope; only the `resolvedTheme` value is scoped.
+Components mounted inside the scope resolve `getThemeManager().resolvedTheme` to the local theme, so theme-dependent logic matches the surrounding CSS. Everything else stays global: `selectedTheme`, `forcedTheme`, `useSystemTheme`, manager methods, and lifecycle events. Manager methods and the `themeSelector` attachment therefore still act on the document even when they are used inside a local scope; only the `resolvedTheme` value is scoped.
 
 Call `getThemeManager()` during component initialization, such as in `<script>`. Svelte context is not available inside later event handlers or effects, so capture the manager first and reuse it there.
 

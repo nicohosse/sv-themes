@@ -89,7 +89,7 @@
 					<h2>Themes</h2>
 					<p>
 						Each theme declares a type, color, favicon, and optional class name. OS dark maps to
-						<code>midnight</code>, and selecting a card uses the <code>themeSelector</code> action.
+						<code>midnight</code>, and selecting a card uses the <code>themeSelector</code> attachment.
 					</p>
 				</header>
 				<ThemeGallery />
